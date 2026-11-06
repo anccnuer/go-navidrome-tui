@@ -1,0 +1,13 @@
+bin/
+dist/
+*.exe
+*.test
+*.out
+*.log
+config.toml
+.cover-cache/
+.DS_Store
+# 仅用于界面设计参考的第三方源码，不属于本项目，不上传
+go-musicfox-master/
+# 本地 IDE 项目数据，不属于项目代码
+.codebuddy/

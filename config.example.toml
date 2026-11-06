@@ -1,0 +1,78 @@
+# subsonic-tui 配置示例
+# 首次启动会运行交互式登录向导；也可以把本文件复制到配置目录后手动编辑。
+# Windows: %AppData%\subsonic-tui\config.toml
+# Linux:   $XDG_CONFIG_HOME/subsonic-tui/config.toml
+# macOS:   ~/Library/Application Support/subsonic-tui/config.toml
+# 可用 SUBSONIC_TUI_CONFIG 指定其它路径，或用 SUBSONIC_TUI_URL / _USER / _PASSWORD 覆盖，
+# 环境变量方式不会把密码写入磁盘，更安全。
+
+active = "home"
+
+[[servers]]
+name = "home"
+url = "http://localhost:4533"
+username = "admin"
+# 向导写入的是 "enc:<hex>"；这只是避免明文展示，并非加密。
+password = "enc:70617373776f7264"
+insecure = false
+
+# [[servers]]
+# name = "remote"
+# url = "https://music.example.com"
+# username = "alice"
+# password = "enc:..."
+# insecure = false
+
+[theme]
+# 内置：musicfox（默认，网易红）| aurora | dracula | nord | gruvbox | mono
+name = "musicfox"
+customPath = ""
+
+[keybindings]
+useDefaultKeyBindings = true
+
+[keybindings.app]
+# 值可以是单个键，也可以是键数组；空字符串表示取消该操作的绑定。
+# next = ["alt+n", "n"]
+# help = ["?", "ctrl+h"]
+# switchTheme = "t"
+# intelligence = ""
+
+[player]
+# 留空自动从 PATH 查找 mpv；也可填写绝对路径。
+mpvPath = ""
+volume = 80
+# sequential | loopAll | loopOne | shuffle
+mode = "sequential"
+socketName = "subsonic-tui-mpv"
+
+[cache]
+ttl = "5m"
+size = 512
+pageSize = 60
+coverCacheSize = 64
+
+[ui]
+# 默认开启：向导输入框/按钮可点击，主界面可点选列表与侧栏、滚轮浏览。
+# 若终端把鼠标事件解析成异常字符，可设为 false（仍可用键盘全量操作）。
+enableMouse = true
+showCover = true
+doubleColumn = true
+# 克制动效：复用 500ms tick 的进度呼吸光、状态图标交替与 toast 淡出；设为 false 则完全静态。
+animations = true
+trueColor = true
+coverWidth = 26
+compactWidth = 60
+
+[lastfm]
+enabled = false
+apiKey = ""
+apiSecret = ""
+sessionKey = ""
+# 播放进度达到该百分比即上报（0 表示仅在结束时上报）
+scrobbleAt = 50
+
+[log]
+# debug | info | warn | error，只写文件，不污染 TUI
+level = "warn"
+file = ""
