@@ -122,6 +122,70 @@ func TestRootMenuIsCentred(t *testing.T) {
 	}
 }
 
+func TestNowPlayingArtworkLeftLyricsRight(t *testing.T) {
+	m := testModel(t, true)
+	m.view = model.ViewNowPlaying
+	m.playerState.Song = model.Song{ID: "s1", Title: "My Song", Artist: "Someone"}
+	lines := make([]model.LyricsLine, 30)
+	for i := range lines {
+		lines[i] = model.LyricsLine{Text: fmt.Sprintf("lyric-%02d", i)}
+	}
+	m.lyrics = model.Lyrics{Lines: lines, Synced: false}
+	m.lyricsOffset = 12
+	m.coverArt = "ART-TOP\nART-MID\nART-END"
+
+	view := m.View()
+	t.Log("\n" + view)
+	leftPad, artW, _, artH, gap := m.immersiveLayout()
+	if artH < 4 {
+		t.Fatalf("artwork height = %d, too small", artH)
+	}
+	if leftPad < 4 {
+		t.Fatalf("left margin = %d, too small", leftPad)
+	}
+	lyricStart := 1 + leftPad + artW + gap // left border + art column + gap
+	artRow, titleRow, lyricRows := -1, -1, 0
+	for i, line := range strings.Split(view, "\n") {
+		if idx := strings.Index(line, "ART-"); idx >= 0 {
+			artRow = i
+			col := lipgloss.Width(line[:idx])
+			if col < 1+leftPad-1 {
+				t.Fatalf("artwork too close to the left border: col %d", col)
+			}
+			if col >= lyricStart {
+				t.Fatalf("artwork should be on the left: col %d", col)
+			}
+		}
+		// The bottom bar repeats the title; only the first occurrence belongs
+		// to the immersive panel (directly under the artwork).
+		if titleRow < 0 && strings.Contains(line, "My Song") {
+			titleRow = i
+		}
+		if idx := strings.Index(line, "lyric-"); idx >= 0 {
+			lyricRows++
+			col := lipgloss.Width(line[:idx])
+			if col < lyricStart-2 {
+				t.Fatalf("lyrics should be on the right: col %d", col)
+			}
+		}
+		if strings.Contains(line, "▎") {
+			t.Fatal("active lyric must be colour-only, without a leading bar")
+		}
+	}
+	if artRow < 0 {
+		t.Fatal("album art is missing from the immersive view")
+	}
+	if titleRow < 0 {
+		t.Fatal("track title is missing")
+	}
+	if titleRow <= artRow {
+		t.Fatal("track title must be displayed below the artwork")
+	}
+	if lyricRows < 8 {
+		t.Fatalf("only %d lyric rows are visible; expected a tall scrolling viewport", lyricRows)
+	}
+}
+
 func TestMenuLayoutRendersMusicfoxStyle(t *testing.T) {
 	m := testModel(t, true)
 	m.stack = []*Node{sampleNode()}

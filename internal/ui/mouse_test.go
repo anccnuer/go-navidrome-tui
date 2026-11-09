@@ -79,7 +79,7 @@ func TestNowPlayingViewToggle(t *testing.T) {
 	if m.view != model.ViewNowPlaying {
 		t.Fatalf("z should open the immersive view, got %v", m.view)
 	}
-	if view := m.View(); !strings.Contains(view, "NOW PLAYING") {
+	if view := m.View(); !strings.Contains(view, "正在播放") {
 		t.Fatal("immersive view is missing its title")
 	}
 	m.Update(keyMsg("z"))

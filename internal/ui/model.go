@@ -368,19 +368,18 @@ func (m *Model) refreshCover() tea.Cmd {
 		m.coverArt = ""
 		return nil
 	}
-	w := min(40, max(16, m.width/4))
-	h := max(5, min(w/2, max(6, m.bodyHeight()-9)))
-	if w < 6 || h < 3 {
+	_, artW, _, artH, _ := m.immersiveLayout()
+	if artW < 6 || artH < 3 {
 		m.coverArt = ""
 		return nil
 	}
 	song := m.playerState.Song
 	if song.ID == "" {
-		m.coverArt = cover.RenderPlaceholder("idle", w, h, m.depth, m.styles.T.Gradient)
+		m.coverArt = cover.RenderPlaceholder("idle", artW, artH, m.depth, m.styles.T.Gradient)
 		m.coverKey = ""
 		return nil
 	}
-	return m.coverCmd(song, w, h)
+	return m.coverCmd(song, artW, artH)
 }
 
 // ---- Key handling ---------------------------------------------------------

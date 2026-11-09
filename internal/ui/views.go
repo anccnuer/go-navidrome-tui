@@ -95,60 +95,78 @@ func (m *Model) nowPlayingInfo() components.NowPlayingInfo {
 	return info
 }
 
-// renderNowPlaying is the immersive, full-panel playback screen (z).
+// immersiveLayout is the shared geometry of the "now playing" screen:
+// album art in a left column with a generous left margin (track title below
+// it), and a full-height scrolling lyric column on the right. Both the
+// renderer and refreshCover use it, so the artwork always fits its column.
+func (m *Model) immersiveLayout() (leftPad, artW, lyricW, artH, gap int) {
+	innerW := max(20, m.width-2) // rounded border takes one cell per side
+	gap = 2
+	leftPad = max(4, min(10, innerW/16))
+	artW = min(44, max(16, innerW*2/5))
+	lyricW = innerW - leftPad - artW - gap
+	if lyricW < 20 {
+		artW = max(10, innerW-leftPad-20-gap)
+		lyricW = innerW - leftPad - artW - gap
+	}
+	// Panel: 2 border rows + 1 embedded title row. Reserve rows for a blank
+	// line plus the track title underneath the artwork.
+	rows := max(4, m.bodyHeight()-3)
+	// Terminal cells are roughly twice as tall as they are wide.
+	artH = max(4, min(artW/2, rows-4))
+	return leftPad, artW, lyricW, artH, gap
+}
+
+// renderNowPlaying is the immersive, two-column playback screen (z).
 func (m *Model) renderNowPlaying(width, height int) string {
 	info := m.nowPlayingInfo()
-	song := m.playerState.Song
-	inner := width - 2
-	centered := func(text string) string {
-		w := components.VisualWidth(text)
-		pad := max(0, (inner-w)/2)
-		return strings.Repeat(" ", pad) + text + strings.Repeat(" ", max(0, inner-w-pad))
-	}
-	lines := []string{centered(m.styles.Gradient("◈  NOW PLAYING"))}
-	if height >= 14 {
-		lines = append(lines, "")
-		if m.coverArt != "" {
-			for _, line := range strings.Split(m.coverArt, "\n") {
-				lines = append(lines, centered(line))
-			}
-		} else {
-			lines = append(lines, centered(m.styles.EmptyGlyph.Render("♪   ♫   ♪")))
-		}
-	}
-	lines = append(lines, "")
-	title := song.DisplayTitle()
+	leftPad, artW, lyricW, _, gap := m.immersiveLayout()
+	innerW := width - 2
+	rows := max(4, height-3) // Panel border (2) + embedded title (1)
+
+	// ---- left: artwork, then the track title (artist is on the bottom bar) ----
+	title := info.Title
 	if title == "" {
 		title = "尚未播放任何曲目"
 	}
-	lines = append(lines, centered(m.styles.Gradient(components.Truncate(title, inner-4))))
-	if height >= 10 && song.DisplayArtist() != "" {
-		lines = append(lines, centered(m.styles.Muted.Render(components.Truncate(song.DisplayArtist(), inner-4))))
+	artLines := []string{m.styles.EmptyGlyph.Render("♪   ♫   ♪")}
+	if m.coverArt != "" {
+		artLines = strings.Split(m.coverArt, "\n")
 	}
-	if height >= 12 && song.Album != "" {
-		lines = append(lines, centered(m.styles.Subtle.Render(components.Truncate(song.Album, inner-4))))
-	}
-	lines = append(lines, "")
-	barW := max(12, inner-12)
-	lines = append(lines, centered(m.styles.ProgressBar(barW, info.Ratio())))
-	lines = append(lines, centered(m.styles.Muted.Render(model.FormatDuration(info.Position)+" / "+model.FormatDuration(info.Duration))))
-	if height >= 12 {
-		chips := m.styles.Chip.Render(info.Status.Icon()+" "+info.Mode.String()) + "  " +
-			m.styles.Chip.Render(fmt.Sprintf("音量 %d%%", info.Volume))
-		if info.Starred {
-			chips += "  " + m.styles.Starred.Render("♥")
+	titleLine := centerLine(m.styles.Primary.Bold(true).Render(
+		components.Truncate(title, artW)), artW)
+	// Artwork + one blank row + title form a block centred vertically.
+	blockH := len(artLines) + 2
+	top := max(0, (rows-blockH)/2)
+	leftLines := make([]string, 0, rows)
+	for i := 0; i < rows; i++ {
+		idx := i - top
+		var line string
+		switch {
+		case idx >= 0 && idx < len(artLines):
+			line = artLines[idx]
+		case idx == len(artLines)+1:
+			line = titleLine
 		}
-		lines = append(lines, centered(chips))
+		leftLines = append(leftLines,
+			strings.Repeat(" ", leftPad)+components.PadRight(line, artW))
 	}
-	if height >= 16 && !m.lyrics.IsEmpty() {
-		active := m.lyrics.LineAt(info.Position * 1000)
-		if active >= 0 && active < len(m.lyrics.Lines) {
-			lines = append(lines, "")
-			lines = append(lines, centered(m.styles.Subtle.Render(
-				components.Truncate(strings.TrimSpace(m.lyrics.Lines[active].Text), inner-4))))
-		}
+	left := components.FitLines(strings.Join(leftLines, "\n"), leftPad+artW, rows)
+
+	// ---- right: full-height scrolling lyrics, colour-only active line ----
+	active := -1
+	offset := 0
+	if m.lyrics.Synced {
+		active = m.lyrics.LineAt(info.Position * 1000)
+		offset = components.LyricsOffsetFor(active, rows)
+	} else {
+		active = m.lyricsOffset
+		offset = max(0, m.lyricsOffset-rows/2)
 	}
-	content := components.FitLines(strings.Join(lines, "\n"), inner, height-2)
+	right := components.RenderLyrics(m.styles, m.lyrics, active, offset, lyricW, rows, false)
+
+	content := components.JoinColumns(left, right, leftPad+artW, gap)
+	content = components.FitLines(content, innerW, rows)
 	return components.Panel(m.styles, "正在播放", content, width, height, true)
 }
 
@@ -529,7 +547,7 @@ func (m *Model) renderLyrics(width, height int) string {
 	}
 	header := "  " + m.styles.Subtitle.Render(components.Truncate(m.playerState.Song.DisplayTitle(), width-8)) +
 		"   " + m.styles.Subtle.Render(source)
-	lyricBlock := components.RenderLyrics(m.styles, m.lyrics, active, offset, width-2, lyricHeight)
+	lyricBlock := components.RenderLyrics(m.styles, m.lyrics, active, offset, width-2, lyricHeight, true)
 	content := header + "\n" + lyricBlock
 	if height < 10 {
 		content = lyricBlock

@@ -114,14 +114,14 @@ func TestPanelAndLyrics(t *testing.T) {
 			{Time: 0, Text: "first"}, {Time: 2000, Text: "second"}, {Time: 4000, Text: "third"},
 		},
 	}
-	view := RenderLyrics(s, lyrics, 1, 0, 40, 6)
+	view := RenderLyrics(s, lyrics, 1, 0, 40, 6, true)
 	if lines := strings.Split(view, "\n"); len(lines) != 6 {
 		t.Fatalf("lyrics height = %d", len(lines))
 	}
 	if !strings.Contains(view, "second") {
 		t.Fatal("active lyric line missing")
 	}
-	empty := RenderLyrics(s, model.Lyrics{}, -1, 0, 40, 4)
+	empty := RenderLyrics(s, model.Lyrics{}, -1, 0, 40, 4, true)
 	if !strings.Contains(empty, "暂无歌词") {
 		t.Fatal("missing empty-lyrics hint")
 	}
@@ -293,15 +293,15 @@ func TestUnsyncedLyricsHonoursOffset(t *testing.T) {
 		lines[i] = model.LyricsLine{Text: fmt.Sprintf("line-%02d", i)}
 	}
 	plain := model.Lyrics{Lines: lines, Synced: false}
-	first := RenderLyrics(s, plain, 0, 0, 40, 5)
-	later := RenderLyrics(s, plain, 30, 28, 40, 5)
+	first := RenderLyrics(s, plain, 0, 0, 40, 5, true)
+	later := RenderLyrics(s, plain, 30, 28, 40, 5, true)
 	if first == later {
 		t.Fatal("offset was ignored for plain lyrics")
 	}
 	if !strings.Contains(later, "line-30") {
 		t.Fatalf("active line missing: %q", later)
 	}
-	far := RenderLyrics(s, plain, 39, 1000, 40, 5)
+	far := RenderLyrics(s, plain, 39, 1000, 40, 5, true)
 	if !strings.Contains(far, "line-39") {
 		t.Fatalf("start offset was not clamped: %q", far)
 	}

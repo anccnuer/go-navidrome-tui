@@ -10,7 +10,9 @@ import (
 
 // RenderLyrics shows a centred, scrolling lyric viewport. For synced lyrics
 // the active line is highlighted; for plain lyrics `offset` controls scroll.
-func RenderLyrics(s *theme.Styles, lyrics model.Lyrics, active, offset, width, height int) string {
+// marker controls the "▎" prefix on the active line (used by the lyric page,
+// omitted by the immersive screen where colour alone marks the current line).
+func RenderLyrics(s *theme.Styles, lyrics model.Lyrics, active, offset, width, height int, marker bool) string {
 	if width < 10 || height < 3 {
 		return FitLines("", width, max(1, height))
 	}
@@ -48,12 +50,18 @@ func RenderLyrics(s *theme.Styles, lyrics model.Lyrics, active, offset, width, h
 		var centered string
 		switch {
 		case idx == active:
-			highlight := s.Gradient(text)
-			pad := (width - VisualWidth(text)) / 2
-			if pad > 0 {
-				centered = strings.Repeat(" ", pad-1) + "▎" + highlight
+			if marker {
+				highlight := s.Gradient(text)
+				pad := (width - VisualWidth(text)) / 2
+				if pad > 0 {
+					centered = strings.Repeat(" ", pad-1) + "▎" + highlight
+				} else {
+					centered = "▎" + highlight
+				}
 			} else {
-				centered = "▎" + highlight
+				// Colour-only highlight, no leading bar.
+				centered = lipgloss.PlaceHorizontal(width, lipgloss.Center,
+					s.Primary.Bold(true).Render(text))
 			}
 		case idx == active-1 || idx == active+1:
 			centered = lipgloss.PlaceHorizontal(width, lipgloss.Center, s.Muted.Render(text))
