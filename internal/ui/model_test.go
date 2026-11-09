@@ -137,8 +137,80 @@ func TestMenuLayoutRendersMusicfoxStyle(t *testing.T) {
 	}
 }
 
+// TestDualColumnNavigation checks the row-wise grid (1 2 / 3 4 / 5 6):
+// up/down stays in one column, left/right switches column within a row.
+func TestDualColumnNavigation(t *testing.T) {
+	makeItems := func() []Item {
+		items := make([]Item, 0, 12)
+		for i := 0; i < 12; i++ {
+			items = append(items, songItem(model.Song{
+				ID: fmt.Sprintf("s%d", i), Title: fmt.Sprintf("Track %d", i),
+			}))
+		}
+		return items
+	}
+
+	m := testModel(t, true)
+	m.stack = []*Node{{Kind: model.NodeAllSongs, Title: "全部歌曲", Items: makeItems()}}
+	if got := m.gridColumns(); got != 2 {
+		t.Fatalf("grid columns = %d, want 2", got)
+	}
+	m.setSelection(0)
+	for _, want := range []int{2, 4} { // 1 -> 3 -> 5
+		m.Update(keyMsg("j"))
+		if got := m.selection(); got != want {
+			t.Fatalf("after j: %d, want %d", got, want)
+		}
+	}
+	m.Update(keyMsg("l")) // 5 -> 6
+	if got := m.selection(); got != 5 {
+		t.Fatalf("after l: %d, want 5", got)
+	}
+	m.Update(keyMsg("h")) // 6 -> 5
+	if got := m.selection(); got != 4 {
+		t.Fatalf("after h: %d, want 4", got)
+	}
+	m.Update(keyMsg("k")) // 5 -> 3
+	if got := m.selection(); got != 2 {
+		t.Fatalf("after k: %d, want 2", got)
+	}
+	m.Update(keyMsg("l")) // 3 -> 4 (right column)
+	m.Update(keyMsg("j")) // 4 -> 6
+	if got := m.selection(); got != 5 {
+		t.Fatalf("right-column down: %d, want 5", got)
+	}
+
+	// Column boundaries must not wrap into the previous/next row.
+	m.setSelection(0)
+	m.Update(keyMsg("h"))
+	if got := m.selection(); got != 0 {
+		t.Fatalf("left edge wrapped to %d", got)
+	}
+	m.setSelection(1)
+	m.Update(keyMsg("l"))
+	if got := m.selection(); got != 1 {
+		t.Fatalf("right edge wrapped to %d", got)
+	}
+
+	// Single column keeps the plain ±1 vertical step.
+	narrow := testModel(t, true)
+	narrow.Update(tea.WindowSizeMsg{Width: 60, Height: 40})
+	narrow.stack = []*Node{{Kind: model.NodeAllSongs, Title: "全部歌曲", Items: makeItems()}}
+	if got := narrow.gridColumns(); got != 1 {
+		t.Fatalf("narrow grid columns = %d", got)
+	}
+	narrow.setSelection(0)
+	narrow.Update(keyMsg("j"))
+	if got := narrow.selection(); got != 1 {
+		t.Fatalf("single-column j: %d, want 1", got)
+	}
+}
+
 func TestNavigationKeys(t *testing.T) {
 	m := testModel(t, true)
+	// Keep this test in single-column mode so it covers the plain ±1 step;
+	// dual-column movement is covered by TestDualColumnNavigation.
+	m.Update(tea.WindowSizeMsg{Width: 60, Height: 40})
 	m.stack = []*Node{sampleNode()}
 	m.Update(keyMsg("j"))
 	if got := m.currentNode().Selected; got != 1 {

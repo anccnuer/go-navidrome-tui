@@ -40,6 +40,9 @@ type ipcMessage struct {
 	Data      json.RawMessage `json:"data"`
 	Event     string          `json:"event"`
 	Name      string          `json:"name"`
+	// mpv sends "reason" as a top-level field of end-file events, not inside
+	// "data" (which only carries property-change values).
+	Reason string `json:"reason"`
 }
 
 func newIPC(conn net.Conn) *ipcConn {
@@ -171,18 +174,27 @@ func parseEvent(msg ipcMessage) (Event, bool) {
 	case "file-loaded":
 		return Event{Kind: EventFileLoaded}, true
 	case "end-file":
+		// "reason" / "error" are top-level fields on real mpv end-file
+		// events; keep accepting a data-embedded variant for compatibility.
+		reason, errText := msg.Reason, msg.Error
 		var d struct {
 			Reason string `json:"reason"`
 			Error  string `json:"error"`
 		}
 		_ = json.Unmarshal(msg.Data, &d)
-		switch d.Reason {
+		if reason == "" {
+			reason = d.Reason
+		}
+		if errText == "" {
+			errText = d.Error
+		}
+		switch reason {
 		case "eof":
 			return Event{Kind: EventEndFile, Text: "eof"}, true
 		case "error":
-			return Event{Kind: EventError, Text: d.Error}, true
+			return Event{Kind: EventError, Text: errText}, true
 		default:
-			return Event{}, false // replace / stop / quit are handled elsewhere
+			return Event{}, false // replace / stop / quit / redirect
 		}
 	case "shutdown", "exit":
 		return Event{Kind: EventExit}, true

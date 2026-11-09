@@ -42,9 +42,11 @@ func (m *Model) runAction(a keymap.Action) tea.Cmd {
 		m.setStatusOK("界面已重新渲染")
 		return m.refreshCover()
 	case keymap.ActionMoveUp:
-		m.move(-1)
+		// Rows are filled column-wise on screen (1 2 / 3 4 / 5 6), so up/down
+		// must skip a whole row to stay in the same column.
+		return m.move(-m.gridColumns())
 	case keymap.ActionMoveDown:
-		return m.move(1)
+		return m.move(m.gridColumns())
 	case keymap.ActionMoveTop:
 		m.setSelection(0)
 	case keymap.ActionMoveBottom:
@@ -57,8 +59,13 @@ func (m *Model) runAction(a keymap.Action) tea.Cmd {
 		switch {
 		case m.view == model.ViewHelp || m.view == model.ViewSettings || m.view == model.ViewLyrics:
 			return m.move(-1)
-		case m.doubleColumnActive():
-			m.move(-m.listRows())
+		case m.gridColumns() == 2:
+			// Even indices are the left column, odd ones the right column
+			// (ClampOffset's page size is always even). Right -> left is -1.
+			if m.selection()%2 == 1 {
+				return m.move(-1)
+			}
+			return nil
 		case !m.popNode():
 			m.setStatus("已在顶层，按 b 或 Esc 返回上一级视图", false)
 		}
@@ -66,8 +73,11 @@ func (m *Model) runAction(a keymap.Action) tea.Cmd {
 		switch {
 		case m.view == model.ViewHelp || m.view == model.ViewSettings || m.view == model.ViewLyrics:
 			return m.move(1)
-		case m.doubleColumnActive():
-			m.move(m.listRows())
+		case m.gridColumns() == 2:
+			if m.selection()%2 == 0 && m.selection()+1 < m.listLen() {
+				return m.move(1)
+			}
+			return nil
 		default:
 			return m.activateSelection()
 		}
@@ -277,6 +287,19 @@ func (m *Model) move(delta int) tea.Cmd {
 // now owns for every view.
 func (m *Model) listRows() int { return m.listHeight() }
 func (m *Model) pageSize() int { return m.listHeight() }
+
+// gridColumns returns the number of columns that are actually drawn. It
+// mirrors components.ColumnsFor so navigation cannot disagree with the
+// rendered grid (e.g. a narrow menu width falling back to one column).
+func (m *Model) gridColumns() int {
+	if !m.doubleColumnActive() {
+		return 1
+	}
+	_, width := m.menuLayout()
+	return components.ColumnsFor(components.ListConfig{
+		Width: width, Height: m.listHeight(), Double: true,
+	})
+}
 
 func (m *Model) selectedItem() (Item, bool) {
 	switch m.view {

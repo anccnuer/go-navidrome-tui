@@ -9,10 +9,10 @@
 | 默认键 | 操作标识 | 说明 |
 | --- | --- | --- |
 | `r` `R` | `rerender` | 重新渲染界面 |
-| `h` `H` `Left` | `moveLeft` | 左移 / 返回上级（双列时为左列） |
-| `l` `L` `Right` | `moveRight` | 右移 / 进入（双列时为右列） |
-| `k` `K` `Up` | `moveUp` | 上移 |
-| `j` `J` `Down` | `moveDown` | 下移 |
+| `h` `H` `Left` | `moveLeft` | 左移：双列时右列→左列（同行），单列时返回上级 |
+| `l` `L` `Right` | `moveRight` | 右移：双列时左列→右列（同行），单列时进入 / 播放 |
+| `k` `K` `Up` | `moveUp` | 上移：双列时同列上移一行（3→1、4→2） |
+| `j` `J` `Down` | `moveDown` | 下移：双列时同列下移一行（1→3→5、2→4→6） |
 | `g` | `moveToTop` | 跳到顶部 |
 | `G` | `moveToBottom` | 跳到底部 |
 | `n` `N` `Enter` | `enter` | 进入子级 / 播放选中歌曲 |

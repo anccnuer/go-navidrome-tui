@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
+	"log/slog"
 	"net"
 	"testing"
 	"time"
@@ -125,9 +127,12 @@ func TestParseEvent(t *testing.T) {
 		{ipcMessage{Event: "property-change", Name: "pause", Data: json.RawMessage("true")}, EventPause, true},
 		{ipcMessage{Event: "property-change", Name: "volume", Data: json.RawMessage("73")}, EventVolume, true},
 		{ipcMessage{Event: "file-loaded"}, EventFileLoaded, true},
+		// Real mpv events carry "reason" at the top level.
+		{ipcMessage{Event: "end-file", Reason: "eof"}, EventEndFile, true},
+		{ipcMessage{Event: "end-file", Reason: "replace"}, EventEndFile, false},
+		{ipcMessage{Event: "end-file", Reason: "error", Error: "failed"}, EventError, true},
+		// Compatibility with a data-embedded variant.
 		{ipcMessage{Event: "end-file", Data: json.RawMessage(`{"reason":"eof"}`)}, EventEndFile, true},
-		{ipcMessage{Event: "end-file", Data: json.RawMessage(`{"reason":"replace"}`)}, EventEndFile, false},
-		{ipcMessage{Event: "end-file", Data: json.RawMessage(`{"reason":"error","error":"failed"}`)}, EventError, true},
 		{ipcMessage{Event: "shutdown"}, EventExit, true},
 	}
 	for i, tc := range cases {
@@ -139,6 +144,77 @@ func TestParseEvent(t *testing.T) {
 	ev, _ := parseEvent(ipcMessage{Event: "property-change", Name: "time-pos", Data: json.RawMessage("12.5")})
 	if ev.Position != 12.5 {
 		t.Fatalf("position = %v", ev.Position)
+	}
+}
+
+// TestRealMPVEndFileJSON guards the exact wire format: mpv puts "reason" at
+// the top level, so a data-only parser silently drops every end-of-track.
+func TestRealMPVEndFileJSON(t *testing.T) {
+	var msg ipcMessage
+	if err := json.Unmarshal([]byte(`{"event":"end-file","reason":"eof"}`), &msg); err != nil {
+		t.Fatal(err)
+	}
+	if msg.Reason != "eof" {
+		t.Fatalf("reason = %q", msg.Reason)
+	}
+	if ev, ok := parseEvent(msg); !ok || ev.Kind != EventEndFile {
+		t.Fatalf("event = %+v ok=%v", ev, ok)
+	}
+}
+
+// TestShuffleAutoAdvancesOnRealEndFileEvent is an end-to-end check of the
+// reported bug: a natural end-of-file in shuffle mode must load the next song.
+func TestShuffleAutoAdvancesOnRealEndFileEvent(t *testing.T) {
+	client, server := net.Pipe()
+	defer server.Close()
+	ipc := newIPC(client)
+	defer ipc.close()
+
+	p := &mpvPlayer{
+		q:        newQueue(ModeShuffle),
+		urlFor:   func(s model.Song) string { return "http://stream/" + s.ID },
+		log:      slog.New(slog.NewTextHandler(io.Discard, nil)),
+		events:   make(chan Event, 16),
+		stop:     make(chan struct{}),
+		procDone: make(chan struct{}),
+	}
+	p.available.Store(true)
+	p.ipc = ipc
+	p.q.set(testSongs(3), 0)
+	go p.consume(ipc)
+
+	type request struct {
+		RequestID int64 `json:"request_id"`
+		Command   []any `json:"command"`
+	}
+	commands := make(chan request, 1)
+	go func() {
+		line, err := bufio.NewReader(server).ReadString('\n')
+		if err != nil {
+			return
+		}
+		var req request
+		if json.Unmarshal([]byte(line), &req) == nil {
+			commands <- req
+		}
+	}()
+
+	if _, err := server.Write([]byte(`{"event":"end-file","reason":"eof"}` + "\n")); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case req := <-commands:
+		if len(req.Command) < 2 || req.Command[0] != "loadfile" {
+			t.Fatalf("expected a loadfile command, got %v", req.Command)
+		}
+		if _, err := fmt.Fprintf(server, `{"error":"success","request_id":%d}`+"\n", req.RequestID); err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("no loadfile after end-file: playback stops instead of advancing")
+	}
+	if p.CurrentIndex() == 0 {
+		t.Fatal("shuffle queue did not advance to the next track")
 	}
 }
 
