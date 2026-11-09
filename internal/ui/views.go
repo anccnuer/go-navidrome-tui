@@ -25,7 +25,6 @@ func (m *Model) View() string {
 	compactBar := m.height < 14
 	status := components.RenderStatusBar(m.styles, components.StatusInfo{
 		Server:     m.activeServerName(),
-		ThemeName:  m.styles.T.Name,
 		ViewName:   m.viewLabel(),
 		Connection: m.connection,
 		Warning:    m.connWarn || m.statusWarn,

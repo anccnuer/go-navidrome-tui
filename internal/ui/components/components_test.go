@@ -86,7 +86,7 @@ func TestRenderNowPlayingAndStatus(t *testing.T) {
 				t.Fatalf("width %d: now-playing line %d overflows (%d)", width, i, w)
 			}
 		}
-		status := RenderStatusBar(s, StatusInfo{Server: "home", ThemeName: "aurora", ViewName: "艺术家", Connection: "已连接", Hint: "/ 过滤"}, width)
+		status := RenderStatusBar(s, StatusInfo{Server: "home", ViewName: "艺术家", Connection: "已连接", Hint: "/ 过滤"}, width)
 		if w := lipgloss.Width(status); w > width+2 {
 			t.Fatalf("width %d: status overflows (%d)", width, w)
 		}
@@ -196,10 +196,23 @@ func TestRenderThemeSwatches(t *testing.T) {
 	}
 }
 
+func TestStatusBarShowsServerInstanceName(t *testing.T) {
+	s := testStyles()
+	out := RenderStatusBar(s, StatusInfo{
+		Server: "home", ViewName: "全部歌曲", Connection: "已连接",
+	}, 120)
+	if !strings.Contains(out, "home") {
+		t.Fatalf("active server name is missing: %q", out)
+	}
+	if s.T.Name != "" && strings.Contains(out, s.T.Name) {
+		t.Fatalf("theme name %q should not appear in the status bar: %q", s.T.Name, out)
+	}
+}
+
 func TestStatusBarGracefulDegradation(t *testing.T) {
 	s := testStyles()
 	info := StatusInfo{
-		Server: "demo", ThemeName: "aurora", ViewName: "艺术家",
+		Server: "demo", ViewName: "艺术家",
 		Connection: "已连接", Hint: "/ 过滤  ? 帮助",
 	}
 	for _, width := range []int{20, 30, 40, 60, 100, 140} {

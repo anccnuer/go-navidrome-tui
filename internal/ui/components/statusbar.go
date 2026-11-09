@@ -8,8 +8,7 @@ import (
 
 // StatusInfo is the data shown by the always-on status bar.
 type StatusInfo struct {
-	Server     string
-	ThemeName  string
+	Server     string // active [[servers]] name, shown at the top right
 	ViewName   string
 	Connection string
 	Hint       string
@@ -22,8 +21,8 @@ type StatusInfo struct {
 
 // RenderStatusBar follows go-musicfox: a " » " nugget, the breadcrumb trail
 // (last level emphasised), a centred context segment and the right-hand
-// connection/theme block. Degradation drops the theme first, then the centre,
-// then the connection text, never the navigation context.
+// connection status plus the active server instance name. Degradation drops
+// the right-hand block before the centre, never the navigation context.
 func RenderStatusBar(s *theme.Styles, info StatusInfo, width int) string {
 	if width < 10 {
 		return strings.Repeat(" ", width)
@@ -59,8 +58,8 @@ func RenderStatusBar(s *theme.Styles, info StatusInfo, width int) string {
 	if conn != "" {
 		rightFull = conn + "  "
 	}
-	if info.ThemeName != "" {
-		rightFull += s.Badge.Render(info.ThemeName) + " "
+	if info.Server != "" {
+		rightFull += s.Badge.Render(Truncate(info.Server, 24)) + " "
 	}
 	rightDot := ""
 	if info.Connection != "" {
