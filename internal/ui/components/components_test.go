@@ -2,6 +2,7 @@ package components
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -281,6 +282,47 @@ func TestHelpRowsStayWithinWidth(t *testing.T) {
 		for i, line := range lines {
 			if w := VisualWidth(line); w > width {
 				t.Fatalf("width %d: row %d overflows (%d)", width, i, w)
+			}
+		}
+	}
+}
+
+// The empty-state illustration is a box: all three rows must start at the
+// same column, otherwise the left border looks broken (seen on the search
+// page before any query is entered).
+func TestEmptyStateArtLeftBorderAligned(t *testing.T) {
+	s := testStyles()
+	ansi := regexp.MustCompile(`\x1b\[[0-9;]*m`)
+	for _, tc := range []struct {
+		name string
+		art  string
+	}{
+		{"default", ""},
+		{"lyrics", "╭───────╮\n│ ♪   ♫ │\n╰───────╯"},
+		{"uneven rows", "╭──────╮\n│ ♪ ♫ │\n╰──────╯"},
+	} {
+		out := RenderEmptyState(s, EmptyState{
+			Glyph: tc.art, Title: "暂无内容", Detail: "试试搜索", Hint: "? 查看快捷键",
+		}, 72, 20)
+		if tc.name == "default" {
+			t.Log("\n" + out)
+		}
+		var cols []int
+		for _, line := range strings.Split(out, "\n") {
+			plain := ansi.ReplaceAllString(line, "")
+			for i, r := range []rune(plain) {
+				if r == '╭' || r == '│' || r == '╰' {
+					cols = append(cols, i)
+					break
+				}
+			}
+		}
+		if len(cols) != 3 {
+			t.Fatalf("%s: found %d box rows", tc.name, len(cols))
+		}
+		for _, c := range cols[1:] {
+			if c != cols[0] {
+				t.Fatalf("%s: left border columns differ: %v", tc.name, cols)
 			}
 		}
 	}

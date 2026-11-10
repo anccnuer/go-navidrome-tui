@@ -16,7 +16,9 @@ type EmptyState struct {
 	Loading bool
 }
 
-const defaultEmptyArt = "╭─────────╮\n│  ♪  ♫  │\n╰─────────╯"
+// All three rows must be the same width: per-row centring would give the
+// middle row a different left padding and break the left border alignment.
+const defaultEmptyArt = "╭─────────╮\n│  ♪  ♫   │\n╰─────────╯"
 
 func blankLine(width int) string { return strings.Repeat(" ", width) }
 
@@ -66,8 +68,18 @@ func RenderEmptyState(s *theme.Styles, e EmptyState, width, height int) string {
 			if art == "" {
 				art = defaultEmptyArt
 			}
-			for _, line := range strings.Split(art, "\n") {
-				lines = append(lines, centered(s.EmptyGlyph.Render(Truncate(line, width-2)), width))
+			// Centre the illustration as one block: every row shares the same
+			// left padding, so the box drawing characters stay aligned even
+			// when individual rows have different widths or ambiguous glyphs.
+			artLines := strings.Split(art, "\n")
+			artW := 0
+			for _, line := range artLines {
+				artW = max(artW, VisualWidth(line))
+			}
+			pad := max(0, (width-artW)/2)
+			for _, line := range artLines {
+				rendered := s.EmptyGlyph.Render(Truncate(line, width-2))
+				lines = append(lines, PadRight(strings.Repeat(" ", pad)+rendered, width))
 			}
 		}
 		if titleLine != "" {
