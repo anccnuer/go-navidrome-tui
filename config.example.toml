@@ -53,8 +53,9 @@ pageSize = 60
 coverCacheSize = 64
 
 [ui]
-# 默认开启：向导输入框/按钮可点击，主界面可点选列表与侧栏、滚轮浏览。
-# 若终端把鼠标事件解析成异常字符，可设为 false（仍可用键盘全量操作）。
+# 默认开启：向导输入框/按钮可点击，主界面可点选菜单/队列行、滚轮浏览。
+# 若终端把鼠标事件解析成异常字符，或偶发出现「按键全部无响应」，可设为 false
+# （仍可用键盘全量操作）。程序默认已关闭 bracketed paste 以规避转义序列残留。
 enableMouse = true
 showCover = true
 doubleColumn = true

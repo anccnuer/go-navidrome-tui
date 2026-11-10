@@ -31,6 +31,10 @@ type Model struct {
 	width, height int
 	view          model.ViewKind
 	prevView      model.ViewKind
+	// overlayReturn marks a child view opened from the immersive screen; that
+	// view must return to the immersive screen, while prevView stays a stable
+	// view (library/search/...) so exiting the immersive screen never loops.
+	overlayReturn bool
 	stack         []*Node
 	reqSeq        int
 
@@ -295,6 +299,7 @@ func (m *Model) onWizardResult(msg wizardResultMsg) tea.Cmd {
 	m.connection = "已连接"
 	m.connWarn = false
 	m.wizardForced = false
+	m.overlayReturn = false
 	m.view = model.ViewLibrary
 	m.stack = nil
 	return m.pushNode(model.NodeRoot, "", "主页")
@@ -366,6 +371,9 @@ func (m *Model) refreshCover() tea.Cmd {
 	// go-musicfox's borderless menu layout.
 	if !m.cfg.UI.ShowCover || m.view != model.ViewNowPlaying {
 		m.coverArt = ""
+		// Invalidate any in-flight cover response; otherwise it could refill
+		// coverArt with a stale size after we left the immersive screen.
+		m.coverKey = ""
 		return nil
 	}
 	_, artW, _, artH, _ := m.immersiveLayout()
@@ -404,6 +412,7 @@ func (m *Model) handleKey(msg tea.KeyMsg) tea.Cmd {
 		if msg.Type == tea.KeyEsc && m.wizardForced && !m.wizard.busy {
 			m.view = model.ViewLibrary
 			m.wizardForced = false
+			m.overlayReturn = false
 			return nil
 		}
 		if m.wizard.update(msg) {
@@ -457,9 +466,8 @@ func (m *Model) handleFilterKey(msg tea.KeyMsg) tea.Cmd {
 func (m *Model) handleSearchKey(msg tea.KeyMsg) tea.Cmd {
 	switch msg.Type {
 	case tea.KeyEsc:
-		m.searchFocus = false
-		m.view = m.prevView
-		return nil
+		m.returnToPrevious()
+		return m.refreshImmersiveArtwork()
 	case tea.KeyEnter:
 		m.searchFocus = false
 		m.searchQuery = m.searchInput
@@ -483,12 +491,8 @@ func (m *Model) handleSearchKey(msg tea.KeyMsg) tea.Cmd {
 func (m *Model) handleHelpKey(msg tea.KeyMsg) tea.Cmd {
 	switch msg.Type {
 	case tea.KeyEsc:
-		m.helpFocus = false
-		m.view = m.prevView
-		if m.view == model.ViewWizard {
-			m.view = model.ViewLibrary
-		}
-		return nil
+		m.returnToPrevious()
+		return m.refreshImmersiveArtwork()
 	case tea.KeyEnter:
 		m.helpFocus = false
 		return nil

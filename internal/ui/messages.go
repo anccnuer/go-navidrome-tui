@@ -95,6 +95,17 @@ func (m *Model) loadNodeCmd(node *Node, page int) tea.Cmd {
 	}
 }
 
+// searchItems maps a search response to list rows. Only songs are returned:
+// a section header would add a phantom row and make the result count, the row
+// numbers and the paging arithmetic all off by one.
+func searchItems(result model.SearchResult) []Item {
+	items := make([]Item, 0, len(result.Songs))
+	for _, s := range result.Songs {
+		items = append(items, songItem(s))
+	}
+	return items
+}
+
 func (m *Model) searchCmd(query string) tea.Cmd {
 	req := m.nextReq()
 	m.searchReq = req
@@ -111,14 +122,7 @@ func (m *Model) searchCmd(query string) tea.Cmd {
 		if err != nil {
 			return searchLoadedMsg{req: req, err: err}
 		}
-		items := make([]Item, 0, len(result.Songs))
-		if len(result.Songs) > 0 {
-			items = append(items, sectionItem(fmt.Sprintf("歌曲 · %d", len(result.Songs))))
-			for _, s := range result.Songs {
-				items = append(items, songItem(s))
-			}
-		}
-		return searchLoadedMsg{req: req, items: items}
+		return searchLoadedMsg{req: req, items: searchItems(result)}
 	}
 }
 

@@ -107,6 +107,27 @@ func TestCleanInputAndSecret(t *testing.T) {
 	}
 }
 
+// With bracketed paste disabled the terminal delivers pasted text as plain
+// runes (no \x1b[200~ / \x1b[201~ markers). Make sure the wizard still
+// accepts a clean URL and strips stray mouse reports that may leak in.
+func TestWizardPasteWithoutBracketedMarkers(t *testing.T) {
+	for _, pasted := range []string{
+		"https://demo.navidrome.org",
+		"\x1b[<0;12;8Mhttps://demo.navidrome.org",
+	} {
+		m := testModel(t, false)
+		wizardPaste(m, pasted)
+		m.Update(tea.KeyMsg{Type: tea.KeyTab})
+		wizardType(m, "demo")
+		m.Update(tea.KeyMsg{Type: tea.KeyTab})
+		wizardType(m, "demo")
+		res := submitWizard(t, m)
+		if res.server.URL != "https://demo.navidrome.org" {
+			t.Fatalf("pasted %q produced URL %q", pasted, res.server.URL)
+		}
+	}
+}
+
 func TestWizardMouseClickActivatesField(t *testing.T) {
 	m := testModel(t, false)
 	m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})

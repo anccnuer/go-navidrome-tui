@@ -10,6 +10,9 @@ func (m *Model) pushNode(kind model.NodeKind, id, title string) tea.Cmd {
 	node := &Node{Kind: kind, ID: id, Title: title}
 	m.stack = append(m.stack, node)
 	m.view = model.ViewLibrary
+	// Entering a library node always lands on the main screen; do not leave a
+	// stale immersive-return flag behind.
+	m.overlayReturn = false
 	m.filterActive = false
 	m.filterInput = ""
 	return m.loadNodeCmd(node, 0)

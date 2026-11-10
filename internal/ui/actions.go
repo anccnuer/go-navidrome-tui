@@ -23,12 +23,18 @@ func (m *Model) runAction(a keymap.Action) tea.Cmd {
 	if m.view == model.ViewNowPlaying {
 		switch a {
 		case keymap.ActionMoveLeft, keymap.ActionSeekBack5:
+			// The immersive screen has no list to move, so give a visible
+			// toast instead of silently changing playback state.
+			m.setStatusOK("快退 5 秒")
 			return m.playerAction(a, func() error { return m.deps.Player.SeekBy(-5) })
 		case keymap.ActionMoveRight, keymap.ActionSeekForward5:
+			m.setStatusOK("快进 5 秒")
 			return m.playerAction(a, func() error { return m.deps.Player.SeekBy(5) })
 		case keymap.ActionMoveUp, keymap.ActionVolumeUp:
+			m.setStatusOK("音量 +5")
 			return m.playerAction(a, func() error { return m.deps.Player.AdjustVolume(5) })
 		case keymap.ActionMoveDown, keymap.ActionVolumeDown:
+			m.setStatusOK("音量 -5")
 			return m.playerAction(a, func() error { return m.deps.Player.AdjustVolume(-5) })
 		}
 	}
@@ -408,6 +414,40 @@ func (m *Model) playFromList() tea.Cmd {
 	return m.playerAction(keymap.ActionEnter, func() error { return m.deps.Player.SetQueue(songs, start) })
 }
 
+// safeBackView resolves where an exit should land. prevView is only ever a
+// stable view (library/search/queue/...), never the immersive screen or the
+// wizard; overlayReturn instead records the one case where a child view must
+// come back to the immersive screen.
+func (m *Model) safeBackView() model.ViewKind {
+	if m.overlayReturn {
+		return model.ViewNowPlaying
+	}
+	v := m.prevView
+	if v == model.ViewNowPlaying || v == model.ViewWizard || v == m.view {
+		return model.ViewLibrary
+	}
+	return v
+}
+
+// returnToPrevious is the single exit path used by Esc/b, view toggles and
+// input-box Esc handlers. Clearing overlayReturn here is what prevents the
+// "prevView == ViewNowPlaying" self-loop that used to trap the UI.
+func (m *Model) returnToPrevious() {
+	m.view = m.safeBackView()
+	m.overlayReturn = false
+	m.searchFocus = false
+	m.helpFocus = false
+}
+
+// refreshImmersiveArtwork regenerates the artwork when a child view returns
+// to the immersive screen (leaving it clears the art to save memory).
+func (m *Model) refreshImmersiveArtwork() tea.Cmd {
+	if m.view == model.ViewNowPlaying && m.coverArt == "" {
+		return m.refreshCover()
+	}
+	return nil
+}
+
 func (m *Model) goBack() tea.Cmd {
 	if m.playlistAddTarget != "" {
 		m.playlistAddTarget = ""
@@ -426,13 +466,8 @@ func (m *Model) goBack() tea.Cmd {
 		return nil
 	}
 	if m.view != model.ViewLibrary {
-		m.view = m.prevView
-		if m.view == model.ViewWizard {
-			m.view = model.ViewLibrary
-		}
-		m.searchFocus = false
-		m.helpFocus = false
-		return nil
+		m.returnToPrevious()
+		return m.refreshImmersiveArtwork()
 	}
 	if !m.popNode() {
 		m.setStatus("已在顶层，b / Esc 返回上一视图，q 退出", false)
@@ -445,13 +480,30 @@ func (m *Model) openView(v model.ViewKind) tea.Cmd {
 	var cmd tea.Cmd
 	if m.view == v {
 		// Pressing the same view key again returns to the previous screen.
-		m.view = m.prevView
-		if m.view == model.ViewWizard {
-			m.view = model.ViewLibrary
-		}
-		m.helpFocus = false
+		m.returnToPrevious()
 	} else {
-		m.prevView = m.view
+		// Keep prevView a stable view and make the whole child-view chain
+		// return to the immersive screen in one step.
+		switch {
+		case m.view == model.ViewNowPlaying:
+			// First child view opened from the immersive screen.
+			m.overlayReturn = true
+		case v == model.ViewNowPlaying:
+			// Re-entering the immersive screen collapses the chain. Never
+			// record a popup as the exit target: Esc/b/z must leave it in
+			// one step instead of bouncing back to Help/Settings.
+			if m.prevView == model.ViewWizard || m.prevView == model.ViewNowPlaying ||
+				m.prevView == model.ViewHelp || m.prevView == model.ViewSettings {
+				m.prevView = model.ViewLibrary
+			}
+			m.overlayReturn = false
+		case m.overlayReturn:
+			// Chaining another child view inside the immersive chain: keep
+			// both the flag and the stable prevView intact.
+		default:
+			m.prevView = m.view
+			m.overlayReturn = false
+		}
 		m.view = v
 		m.filterActive = false
 		if v == model.ViewHelp {
@@ -481,8 +533,17 @@ func (m *Model) openView(v model.ViewKind) tea.Cmd {
 
 func (m *Model) openSearch() tea.Cmd {
 	if m.view != model.ViewSearch {
-		m.prevView = m.view
+		switch {
+		case m.view == model.ViewNowPlaying:
+			m.overlayReturn = true
+		case m.overlayReturn:
+			// Keep the immersive return chain intact (see openView).
+		default:
+			m.prevView = m.view
+			m.overlayReturn = false
+		}
 	}
+	m.filterActive = false
 	m.view = model.ViewSearch
 	m.searchFocus = true
 	m.searchInput = ""
@@ -495,6 +556,8 @@ func (m *Model) openWizard() tea.Cmd {
 	m.wizardForced = true
 	m.wizard.busy = false
 	m.wizard.err = ""
+	m.overlayReturn = false
+	m.filterActive = false
 	m.view = model.ViewWizard
 	return nil
 }
@@ -808,7 +871,7 @@ func (m *Model) hint() string {
 	case model.ViewHelp:
 		return "输入过滤 · Esc 返回"
 	case model.ViewNowPlaying:
-		return "h/l 快退快进 · j/k 音量 · Space 暂停 · z 返回"
+		return "h/l 快退快进 · j/k 音量 · Space 暂停 · Esc/b/z 返回 · q 退出"
 	default:
 		return strings.TrimSpace("/ 过滤  ? 帮助  Space 播放/暂停")
 	}

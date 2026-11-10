@@ -130,7 +130,12 @@ func Build(opts Options) (*Result, error) {
 
 	m := ui.New(deps)
 
-	options := []tea.ProgramOption{tea.WithAltScreen()}
+	// Bracketed paste can leave the input parser waiting for a terminating
+	// \x1b[201~ when mouse/CSI sequences get interleaved (seen on Windows
+	// Terminal + ConPTY), which makes every subsequent key appear dead.
+	// Input fields already clean pasted text via cleanInput, so disabling the
+	// protocol costs no functionality and removes that failure mode.
+	options := []tea.ProgramOption{tea.WithAltScreen(), tea.WithoutBracketedPaste()}
 	if cfg.UI.EnableMouse {
 		options = append(options, tea.WithMouseCellMotion())
 	}

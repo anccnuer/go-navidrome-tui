@@ -440,3 +440,215 @@ func TestPlainLyricsScrolling(t *testing.T) {
 		t.Fatal("the last lyric line should be visible after scrolling")
 	}
 }
+
+// Regression: opening any child view from the immersive screen used to
+// overwrite prevView with ViewNowPlaying, so Esc/b/z all set the view back to
+// itself and the UI was permanently stuck.
+func TestImmersiveExitAfterOpeningChildViews(t *testing.T) {
+	openKeys := []struct {
+		name string
+		msg  tea.KeyMsg
+	}{
+		{"?", keyMsg("?")},
+		{"c", keyMsg("c")},
+		{"y", keyMsg("y")},
+		{"F2", tea.KeyMsg{Type: tea.KeyF2}},
+		{"Ctrl+F", tea.KeyMsg{Type: tea.KeyCtrlF}},
+	}
+	for _, tc := range openKeys {
+		m := testModel(t, true)
+		m.stack = []*Node{sampleNode()}
+		m.Update(keyMsg("z"))
+		if m.view != model.ViewNowPlaying {
+			t.Fatalf("%s: z did not open the immersive view", tc.name)
+		}
+		m.Update(tc.msg)
+		if m.view == model.ViewNowPlaying {
+			t.Fatalf("%s did not open a child view", tc.name)
+		}
+		if m.prevView == model.ViewNowPlaying {
+			t.Fatalf("%s polluted prevView with ViewNowPlaying", tc.name)
+		}
+		m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+		if m.view != model.ViewNowPlaying {
+			t.Fatalf("%s: Esc should return to immersive, got %v", tc.name, m.view)
+		}
+		if m.overlayReturn {
+			t.Fatalf("%s: overlayReturn was not cleared", tc.name)
+		}
+		// Now every exit key must work, whichever child view was visited.
+		for _, exit := range []struct {
+			name string
+			msg  tea.KeyMsg
+		}{
+			{"z", keyMsg("z")},
+			{"Esc", tea.KeyMsg{Type: tea.KeyEsc}},
+			{"b", keyMsg("b")},
+		} {
+			if m.view != model.ViewNowPlaying {
+				m.Update(keyMsg("z"))
+				if m.view != model.ViewNowPlaying {
+					t.Fatalf("%s/%s: z did not reopen immersive", tc.name, exit.name)
+				}
+			}
+			m.Update(exit.msg)
+			if m.view != model.ViewLibrary {
+				t.Fatalf("%s/%s should exit immersive, got %v", tc.name, exit.name, m.view)
+			}
+		}
+	}
+}
+
+func TestImmersiveQuitKeysAlwaysWork(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		msg  tea.KeyMsg
+	}{
+		{"q", keyMsg("q")},
+		{"Ctrl+C", tea.KeyMsg{Type: tea.KeyCtrlC}},
+	} {
+		m := testModel(t, true)
+		m.stack = []*Node{sampleNode()}
+		m.Update(keyMsg("z"))
+		m.Update(keyMsg("?"))
+		m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+		_, cmd := m.Update(tc.msg)
+		if cmd == nil {
+			t.Fatalf("%s: no quit command", tc.name)
+		}
+		if _, ok := cmd().(tea.QuitMsg); !ok {
+			t.Fatalf("%s: expected tea.QuitMsg, got %T", tc.name, cmd())
+		}
+	}
+}
+
+// Chained child views opened from the immersive screen must all return there,
+// and re-entering the immersive screen from a popup must not record that popup
+// as the exit target.
+func TestImmersiveChainedChildViews(t *testing.T) {
+	m := testModel(t, true)
+	m.stack = []*Node{sampleNode()}
+	m.Update(keyMsg("z"))
+	m.Update(keyMsg("c")) // first child view (queue)
+	m.Update(keyMsg("y")) // chained child view (lyrics); help would swallow keys
+	if m.view != model.ViewLyrics {
+		t.Fatalf("y should open the lyrics view, got %v", m.view)
+	}
+	if !m.overlayReturn {
+		t.Fatal("chained child view lost the immersive return flag")
+	}
+	if m.prevView == model.ViewNowPlaying {
+		t.Fatal("prevView was polluted")
+	}
+	m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	if m.view != model.ViewNowPlaying {
+		t.Fatalf("Esc should return to immersive, got %v", m.view)
+	}
+	m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	if m.view != model.ViewLibrary {
+		t.Fatalf("Esc should exit immersive in one step, got %v", m.view)
+	}
+}
+
+func TestImmersiveEnteredFromChildView(t *testing.T) {
+	for _, sequence := range []struct {
+		name string
+		open func(*Model)
+	}{
+		{"from queue", func(m *Model) { m.Update(keyMsg("c")) }},
+		{"from immersive chain", func(m *Model) {
+			m.Update(keyMsg("z"))
+			m.Update(keyMsg("c"))
+		}},
+	} {
+		m := testModel(t, true)
+		m.stack = []*Node{sampleNode()}
+		sequence.open(m)
+		m.Update(keyMsg("z"))
+		if m.view != model.ViewNowPlaying {
+			t.Fatalf("%s: z did not open immersive, got %v", sequence.name, m.view)
+		}
+		if m.prevView == model.ViewHelp || m.prevView == model.ViewSettings ||
+			m.prevView == model.ViewNowPlaying {
+			t.Fatalf("%s: popup recorded as exit target: %v", sequence.name, m.prevView)
+		}
+		m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+		if m.view != model.ViewLibrary {
+			t.Fatalf("%s: Esc should exit immersive in one step, got %v", sequence.name, m.view)
+		}
+	}
+}
+
+func TestOpenSearchClearsInlineFilter(t *testing.T) {
+	m := testModel(t, true)
+	m.stack = []*Node{sampleNode()}
+	m.Update(keyMsg("/"))
+	if !m.filterActive {
+		t.Fatal("/ did not activate inline filtering")
+	}
+	// Inline filtering swallows most keys, so call the view switch directly to
+	// verify it clears the filter state instead of leaking it into search.
+	m.openSearch()
+	if m.view != model.ViewSearch {
+		t.Fatalf("openSearch should enter the search view, got %v", m.view)
+	}
+	if m.filterActive {
+		t.Fatal("inline filter leaked into the search view")
+	}
+}
+
+// Regression: a "歌曲 · N" section header used to be prepended to search
+// results, which both showed the unwanted header and made the result count,
+// row numbers and paging off by one.
+func TestSearchResultsHaveNoSectionHeaderAndCorrectCount(t *testing.T) {
+	m := testModel(t, true)
+	songs := []model.Song{
+		{ID: "s1", Title: "Alpha"},
+		{ID: "s2", Title: "Beta"},
+		{ID: "s3", Title: "Gamma"},
+	}
+	items := searchItems(model.SearchResult{Songs: songs})
+	if len(items) != len(songs) {
+		t.Fatalf("items = %d, want %d", len(items), len(songs))
+	}
+	for i, it := range items {
+		if it.Kind != ItemSong {
+			t.Fatalf("item %d is %v, want a song", i, it.Kind)
+		}
+	}
+
+	m.view = model.ViewSearch
+	m.searchFocus = false
+	m.searchQuery = "a"
+	m.searchNode.Items = items
+	m.searchNode.Selected = 0
+	m.searchNode.refreshFilter()
+	view := m.renderSearch(m.width, m.bodyHeight())
+	if !strings.Contains(view, fmt.Sprintf("%d 项结果", len(songs))) {
+		t.Fatalf("result count is off by one: %q", view)
+	}
+	if strings.Contains(view, "歌曲 ·") || strings.Contains(view, "──") {
+		t.Fatal("section header should not be rendered in search results")
+	}
+}
+
+func TestImmersiveKeysShowFeedback(t *testing.T) {
+	m := testModel(t, true)
+	m.stack = []*Node{sampleNode()}
+	m.Update(keyMsg("z"))
+	for key, want := range map[string]string{
+		"h": "快退 5 秒", "l": "快进 5 秒", "j": "音量 -5", "k": "音量 +5",
+	} {
+		m.Update(keyMsg(key))
+		found := false
+		for _, t := range m.toasts {
+			if strings.Contains(t.text, want) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("%s: missing visible feedback %q", key, want)
+		}
+	}
+}
