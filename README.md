@@ -200,6 +200,15 @@ make tidy     # go mod tidy
 make windows linux darwin   # 交叉编译，Windows 上需要 Git Bash / MSYS / WSL
 ```
 
+发版不是每次 push 都跑。给版本打 `v*` tag 才会触发 `.github/workflows/release.yml`：先跑测试，再交叉编译 Windows / Linux / macOS 共 5 个平台，打包并附 `SHA256SUMS` 发到 GitHub Release。
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+也可以在 Actions 页面手动运行 Release 工作流，填入一个已存在的 tag 补发。
+
 目录结构：
 
 ```

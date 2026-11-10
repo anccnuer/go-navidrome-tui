@@ -1,0 +1,119 @@
+name: Release
+
+# 只有打发版 tag 时才自动运行；也可在 Actions 页面手动补发。
+# 普通 push 到分支不会触发这个工作流。
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '要发布的版本 tag（如 v1.0.0），该 tag 必须已存在'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  VERSION: ${{ inputs.tag || github.ref_name }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Vet and test
+        run: |
+          go vet ./...
+          go test ./... -count=1
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { goos: windows, goarch: amd64, ext: '.exe' }
+          - { goos: linux,   goarch: amd64, ext: '' }
+          - { goos: linux,   goarch: arm64, ext: '' }
+          - { goos: darwin,  goarch: amd64, ext: '' }
+          - { goos: darwin,  goarch: arm64, ext: '' }
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Build and package
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: '0'
+          EXT: ${{ matrix.ext }}
+        run: |
+          set -euo pipefail
+          name="ndtui-${VERSION}-${GOOS}-${GOARCH}"
+          mkdir -p "dist/${name}"
+          go build -trimpath \
+            -ldflags "-s -w -X main.version=${VERSION}" \
+            -o "dist/${name}/ndtui${EXT}" ./cmd/ndtui
+          cp README.md config.example.toml "dist/${name}/"
+          if [ "$GOOS" = "windows" ]; then
+            (cd dist && zip -qr "${name}.zip" "${name}")
+          else
+            (cd dist && tar -czf "${name}.tar.gz" "${name}")
+          fi
+          rm -rf "dist/${name}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    needs: [test, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: packages-*
+          path: dist
+          merge-multiple: true
+      - name: Generate checksums
+        run: |
+          cd dist
+          # Flatten any nested artifact layout so every package sits in dist/.
+          find . -mindepth 2 -type f -name 'ndtui-*' -exec mv -t . {} +
+          find . -mindepth 1 -type d -empty -delete
+          sha256sum ndtui-* > SHA256SUMS
+          ls -1
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$VERSION" dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$VERSION" \
+            --generate-notes \
+            --verify-tag
