@@ -12,7 +12,7 @@ import (
 // TestPlayerHelperProcess is re-executed as a long-lived child process so the
 // lifecycle tests do not depend on external tools.
 func TestPlayerHelperProcess(t *testing.T) {
-	if os.Getenv("SUBSONIC_TUI_HELPER") != "1" {
+	if os.Getenv("NAVIDROME_TUI_HELPER") != "1" {
 		return
 	}
 	time.Sleep(30 * time.Second)
@@ -20,7 +20,7 @@ func TestPlayerHelperProcess(t *testing.T) {
 
 func TestKillProcessTerminatesChild(t *testing.T) {
 	cmd := exec.Command(os.Args[0], "-test.run=TestPlayerHelperProcess")
-	cmd.Env = append(os.Environ(), "SUBSONIC_TUI_HELPER=1")
+	cmd.Env = append(os.Environ(), "NAVIDROME_TUI_HELPER=1")
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("start child: %v", err)
 	}
@@ -43,7 +43,7 @@ func TestKillProcessTerminatesChild(t *testing.T) {
 
 func TestCloseIsIdempotentAndTerminatesChild(t *testing.T) {
 	cmd := exec.Command(os.Args[0], "-test.run=TestPlayerHelperProcess")
-	cmd.Env = append(os.Environ(), "SUBSONIC_TUI_HELPER=1")
+	cmd.Env = append(os.Environ(), "NAVIDROME_TUI_HELPER=1")
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("start child: %v", err)
 	}

@@ -3,8 +3,8 @@ package components
 import (
 	"strings"
 
+	"github.com/anccnuer/go-navidrome-tui/internal/theme"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/subsonic-tui/subsonic-tui/internal/theme"
 )
 
 // EmptyState describes a centred, illustrated empty/loading state.

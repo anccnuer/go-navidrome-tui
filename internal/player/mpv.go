@@ -12,7 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/subsonic-tui/subsonic-tui/internal/model"
+	"github.com/anccnuer/go-navidrome-tui/internal/model"
 )
 
 // ErrMPVUnavailable is returned by playback commands before mpv is ready or
@@ -67,7 +67,7 @@ func New(cfg Config, urlFor func(model.Song) string) (Player, error) {
 		cfg.Volume = 100
 	}
 	if cfg.SocketName == "" {
-		cfg.SocketName = "subsonic-tui-mpv"
+		cfg.SocketName = "ndtui-mpv"
 	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.New(slog.NewTextHandler(io.Discard, nil))

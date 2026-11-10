@@ -3,8 +3,8 @@ package ui
 import (
 	"testing"
 
+	"github.com/anccnuer/go-navidrome-tui/internal/config"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/subsonic-tui/subsonic-tui/internal/config"
 )
 
 func wizardType(m *Model, text string) {

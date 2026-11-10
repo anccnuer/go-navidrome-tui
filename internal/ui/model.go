@@ -7,14 +7,14 @@ import (
 	"os"
 	"time"
 
+	"github.com/anccnuer/go-navidrome-tui/internal/cache"
+	"github.com/anccnuer/go-navidrome-tui/internal/config"
+	"github.com/anccnuer/go-navidrome-tui/internal/cover"
+	"github.com/anccnuer/go-navidrome-tui/internal/keymap"
+	"github.com/anccnuer/go-navidrome-tui/internal/model"
+	"github.com/anccnuer/go-navidrome-tui/internal/player"
+	"github.com/anccnuer/go-navidrome-tui/internal/theme"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/subsonic-tui/subsonic-tui/internal/cache"
-	"github.com/subsonic-tui/subsonic-tui/internal/config"
-	"github.com/subsonic-tui/subsonic-tui/internal/cover"
-	"github.com/subsonic-tui/subsonic-tui/internal/keymap"
-	"github.com/subsonic-tui/subsonic-tui/internal/model"
-	"github.com/subsonic-tui/subsonic-tui/internal/player"
-	"github.com/subsonic-tui/subsonic-tui/internal/theme"
 )
 
 // Model is the root tea.Model.

@@ -17,7 +17,7 @@ import (
 // fight over the same endpoint.
 func ipcAddress(name string) string {
 	if name == "" {
-		name = "subsonic-tui-mpv"
+		name = "ndtui-mpv"
 	}
 	return `\\.\pipe\` + name + "-" + strconv.Itoa(os.Getpid())
 }

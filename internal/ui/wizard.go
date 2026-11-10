@@ -3,11 +3,11 @@ package ui
 import (
 	"strings"
 
+	"github.com/anccnuer/go-navidrome-tui/internal/config"
+	"github.com/anccnuer/go-navidrome-tui/internal/theme"
+	"github.com/anccnuer/go-navidrome-tui/internal/ui/components"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/subsonic-tui/subsonic-tui/internal/config"
-	"github.com/subsonic-tui/subsonic-tui/internal/theme"
-	"github.com/subsonic-tui/subsonic-tui/internal/ui/components"
 )
 
 type wizardField struct {
@@ -108,7 +108,7 @@ func (w *wizardModel) submit() bool {
 	}{
 		{0, cleanInput(w.fields[0].value), "名称不能为空"},
 		{2, cleanInput(w.fields[2].value), "用户名不能为空"},
-		{3, cleanSecret(w.fields[3].value), "密码不能为空（也可用环境变量 SUBSONIC_TUI_PASSWORD）"},
+		{3, cleanSecret(w.fields[3].value), "密码不能为空（也可用环境变量 NAVIDROME_TUI_PASSWORD）"},
 	} {
 		if strings.TrimSpace(check.value) == "" {
 			w.focusField(check.index)

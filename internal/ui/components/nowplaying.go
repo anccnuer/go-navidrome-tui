@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/subsonic-tui/subsonic-tui/internal/model"
-	"github.com/subsonic-tui/subsonic-tui/internal/theme"
+	"github.com/anccnuer/go-navidrome-tui/internal/model"
+	"github.com/anccnuer/go-navidrome-tui/internal/theme"
 )
 
 // NowPlayingInfo is a UI-friendly snapshot of the playback state.

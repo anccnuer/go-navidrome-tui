@@ -12,7 +12,7 @@ import (
 
 func ipcAddress(name string) string {
 	if name == "" {
-		name = "subsonic-tui-mpv"
+		name = "ndtui-mpv"
 	}
 	return filepath.Join(os.TempDir(), name+"-"+strconv.Itoa(os.Getpid())+".sock")
 }

@@ -1,4 +1,4 @@
-// Command subsonic-tui is a terminal music player for Navidrome.
+// Command ndtui is a terminal music player for Navidrome.
 package main
 
 import (
@@ -8,19 +8,19 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/subsonic-tui/subsonic-tui/internal/app"
+	"github.com/anccnuer/go-navidrome-tui/internal/app"
 )
 
 var version = "dev"
 
 func main() {
-	configPath := flag.String("config", "", "指定 config.toml 路径（也可设置 SUBSONIC_TUI_CONFIG）")
+	configPath := flag.String("config", "", "指定 config.toml 路径（也可设置 NAVIDROME_TUI_CONFIG）")
 	debug := flag.Bool("debug", false, "启用 debug 日志（写入日志文件，不输出到终端）")
 	showVersion := flag.Bool("version", false, "显示版本并退出")
 	flag.Parse()
 
 	if *showVersion {
-		fmt.Printf("subsonic-tui %s\n", version)
+		fmt.Printf("navidrome-tui %s\n", version)
 		return
 	}
 

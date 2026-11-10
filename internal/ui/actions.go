@@ -6,13 +6,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/anccnuer/go-navidrome-tui/internal/keymap"
+	"github.com/anccnuer/go-navidrome-tui/internal/model"
+	"github.com/anccnuer/go-navidrome-tui/internal/player"
+	"github.com/anccnuer/go-navidrome-tui/internal/subsonic"
+	"github.com/anccnuer/go-navidrome-tui/internal/theme"
+	"github.com/anccnuer/go-navidrome-tui/internal/ui/components"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/subsonic-tui/subsonic-tui/internal/keymap"
-	"github.com/subsonic-tui/subsonic-tui/internal/model"
-	"github.com/subsonic-tui/subsonic-tui/internal/player"
-	"github.com/subsonic-tui/subsonic-tui/internal/subsonic"
-	"github.com/subsonic-tui/subsonic-tui/internal/theme"
-	"github.com/subsonic-tui/subsonic-tui/internal/ui/components"
 )
 
 // runAction dispatches a resolved keymap action. Every call that touches the

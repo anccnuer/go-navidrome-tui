@@ -3,7 +3,7 @@ package components
 import (
 	"strings"
 
-	"github.com/subsonic-tui/subsonic-tui/internal/theme"
+	"github.com/anccnuer/go-navidrome-tui/internal/theme"
 )
 
 // RenderThemeSwatches draws one row per palette with real colour blocks so

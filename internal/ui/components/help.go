@@ -3,8 +3,8 @@ package components
 import (
 	"strings"
 
-	"github.com/subsonic-tui/subsonic-tui/internal/keymap"
-	"github.com/subsonic-tui/subsonic-tui/internal/theme"
+	"github.com/anccnuer/go-navidrome-tui/internal/keymap"
+	"github.com/anccnuer/go-navidrome-tui/internal/theme"
 )
 
 // RenderHelp keeps the original signature for callers that do not filter.

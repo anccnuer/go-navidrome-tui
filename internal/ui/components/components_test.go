@@ -6,10 +6,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/anccnuer/go-navidrome-tui/internal/keymap"
+	"github.com/anccnuer/go-navidrome-tui/internal/model"
+	"github.com/anccnuer/go-navidrome-tui/internal/theme"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/subsonic-tui/subsonic-tui/internal/keymap"
-	"github.com/subsonic-tui/subsonic-tui/internal/model"
-	"github.com/subsonic-tui/subsonic-tui/internal/theme"
 )
 
 func testStyles() *theme.Styles { return theme.New(theme.Builtin("aurora"), theme.DepthTrueColor) }

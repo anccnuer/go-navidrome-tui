@@ -3,9 +3,9 @@ package components
 import (
 	"strings"
 
+	"github.com/anccnuer/go-navidrome-tui/internal/model"
+	"github.com/anccnuer/go-navidrome-tui/internal/theme"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/subsonic-tui/subsonic-tui/internal/model"
-	"github.com/subsonic-tui/subsonic-tui/internal/theme"
 )
 
 // RenderLyrics shows a centred, scrolling lyric viewport. For synced lyrics

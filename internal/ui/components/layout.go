@@ -5,8 +5,8 @@ package components
 import (
 	"strings"
 
+	"github.com/anccnuer/go-navidrome-tui/internal/theme"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/subsonic-tui/subsonic-tui/internal/theme"
 )
 
 // VisualWidth returns the number of terminal cells a string occupies.

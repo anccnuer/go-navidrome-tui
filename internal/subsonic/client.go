@@ -17,15 +17,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/subsonic-tui/subsonic-tui/internal/cache"
-	"github.com/subsonic-tui/subsonic-tui/internal/model"
+	"github.com/anccnuer/go-navidrome-tui/internal/cache"
+	"github.com/anccnuer/go-navidrome-tui/internal/model"
 )
 
 const (
 	// APIVersion is the Subsonic version Navidrome is compatible with.
 	APIVersion = "1.16.1"
 	// ClientName is sent as the "c" parameter and shown in Navidrome's clients.
-	ClientName = "subsonic-tui"
+	ClientName = "navidrome-tui"
 	maxBody    = 16 << 20 // 16 MiB guard for JSON responses
 )
 

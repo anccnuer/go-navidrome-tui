@@ -7,12 +7,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/anccnuer/go-navidrome-tui/internal/config"
+	"github.com/anccnuer/go-navidrome-tui/internal/keymap"
+	"github.com/anccnuer/go-navidrome-tui/internal/model"
+	"github.com/anccnuer/go-navidrome-tui/internal/subsonic"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/subsonic-tui/subsonic-tui/internal/config"
-	"github.com/subsonic-tui/subsonic-tui/internal/keymap"
-	"github.com/subsonic-tui/subsonic-tui/internal/model"
-	"github.com/subsonic-tui/subsonic-tui/internal/subsonic"
 )
 
 func testModel(t *testing.T, withServer bool) *Model {
@@ -191,7 +191,7 @@ func TestMenuLayoutRendersMusicfoxStyle(t *testing.T) {
 	m.stack = []*Node{sampleNode()}
 	view := m.View()
 	t.Log("\n" + view)
-	for _, want := range []string{"=>", "Alpha", "↑↓/jk", "subsonic-tui · ["} {
+	for _, want := range []string{"=>", "Alpha", "↑↓/jk", "navidrome-tui · ["} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("view is missing %q\n%s", want, view)
 		}

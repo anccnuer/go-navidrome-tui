@@ -6,7 +6,7 @@ import (
 	"image"
 	"strings"
 
-	"github.com/subsonic-tui/subsonic-tui/internal/theme"
+	"github.com/anccnuer/go-navidrome-tui/internal/theme"
 )
 
 // UpperHalfBlock renders two vertical pixels in one character cell: the

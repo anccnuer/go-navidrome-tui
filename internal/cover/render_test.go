@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/anccnuer/go-navidrome-tui/internal/theme"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/subsonic-tui/subsonic-tui/internal/theme"
 )
 
 func testImage() image.Image {

@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/subsonic-tui/subsonic-tui/internal/model"
+	"github.com/anccnuer/go-navidrome-tui/internal/model"
 )
 
 func testSongs(n int) []model.Song {

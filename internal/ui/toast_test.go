@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/subsonic-tui/subsonic-tui/internal/ui/components"
+	"github.com/anccnuer/go-navidrome-tui/internal/ui/components"
 )
 
 func TestToastLevelsDedupAndCap(t *testing.T) {

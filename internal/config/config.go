@@ -89,7 +89,7 @@ type LastFMConfig struct {
 // LogConfig configures the file-only slog output.
 type LogConfig struct {
 	Level string `toml:"level"`
-	File  string `toml:"file" comment:"留空使用用户缓存目录下的 subsonic-tui.log"`
+	File  string `toml:"file" comment:"留空使用用户缓存目录下的 navidrome-tui.log"`
 }
 
 // Default returns a fully populated configuration.
@@ -106,7 +106,7 @@ func Default() *Config {
 		Player: PlayerConfig{
 			Volume:     80,
 			Mode:       "sequential",
-			SocketName: "subsonic-tui-mpv",
+			SocketName: "ndtui-mpv",
 		},
 		Cache: CacheConfig{
 			TTL:            "5m",

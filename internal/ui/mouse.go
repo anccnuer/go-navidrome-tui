@@ -3,10 +3,10 @@ package ui
 import (
 	"time"
 
+	"github.com/anccnuer/go-navidrome-tui/internal/keymap"
+	"github.com/anccnuer/go-navidrome-tui/internal/model"
+	"github.com/anccnuer/go-navidrome-tui/internal/ui/components"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/subsonic-tui/subsonic-tui/internal/keymap"
-	"github.com/subsonic-tui/subsonic-tui/internal/model"
-	"github.com/subsonic-tui/subsonic-tui/internal/ui/components"
 )
 
 const doubleClickInterval = 400 * time.Millisecond

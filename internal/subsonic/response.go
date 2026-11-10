@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/subsonic-tui/subsonic-tui/internal/lyrics"
-	"github.com/subsonic-tui/subsonic-tui/internal/model"
+	"github.com/anccnuer/go-navidrome-tui/internal/lyrics"
+	"github.com/anccnuer/go-navidrome-tui/internal/model"
 )
 
 // The wire format is the Subsonic "f=json" envelope. Navidrome sometimes

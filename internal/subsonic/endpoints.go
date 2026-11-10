@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/subsonic-tui/subsonic-tui/internal/lyrics"
-	"github.com/subsonic-tui/subsonic-tui/internal/model"
+	"github.com/anccnuer/go-navidrome-tui/internal/lyrics"
+	"github.com/anccnuer/go-navidrome-tui/internal/model"
 )
 
 // StarKind selects the correct parameter for star/unstar: Subsonic uses a

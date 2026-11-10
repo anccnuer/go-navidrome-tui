@@ -1,9 +1,9 @@
-# subsonic-tui 配置示例
+# go-navidrome-tui 配置示例
 # 首次启动会运行交互式登录向导；也可以把本文件复制到配置目录后手动编辑。
-# Windows: %AppData%\subsonic-tui\config.toml
-# Linux:   $XDG_CONFIG_HOME/subsonic-tui/config.toml
-# macOS:   ~/Library/Application Support/subsonic-tui/config.toml
-# 可用 SUBSONIC_TUI_CONFIG 指定其它路径，或用 SUBSONIC_TUI_URL / _USER / _PASSWORD 覆盖，
+# Windows: %AppData%\navidrome-tui\config.toml
+# Linux:   $XDG_CONFIG_HOME/navidrome-tui/config.toml
+# macOS:   ~/Library/Application Support/navidrome-tui/config.toml
+# 可用 NAVIDROME_TUI_CONFIG 指定其它路径，或用 NAVIDROME_TUI_URL / _USER / _PASSWORD 覆盖，
 # 环境变量方式不会把密码写入磁盘，更安全。
 
 active = "home"
@@ -44,7 +44,7 @@ mpvPath = ""
 volume = 80
 # sequential | loopAll | loopOne | shuffle
 mode = "sequential"
-socketName = "subsonic-tui-mpv"
+socketName = "ndtui-mpv"
 
 [cache]
 ttl = "5m"

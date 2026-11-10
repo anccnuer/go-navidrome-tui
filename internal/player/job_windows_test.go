@@ -19,7 +19,7 @@ func TestKillOnCloseJobTerminatesChild(t *testing.T) {
 		t.Fatalf("create job: %v", err)
 	}
 	cmd := exec.Command(os.Args[0], "-test.run=TestPlayerHelperProcess")
-	cmd.Env = append(os.Environ(), "SUBSONIC_TUI_HELPER=1")
+	cmd.Env = append(os.Environ(), "NAVIDROME_TUI_HELPER=1")
 	decorateCmd(cmd)
 	if err := cmd.Start(); err != nil {
 		_ = windows.CloseHandle(job)

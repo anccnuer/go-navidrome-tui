@@ -8,21 +8,21 @@ import (
 	"testing"
 	"time"
 
-	"github.com/subsonic-tui/subsonic-tui/internal/model"
+	"github.com/anccnuer/go-navidrome-tui/internal/model"
 )
 
 // TestPublicDemoReadOnly exercises the real public Navidrome demo instance.
 // It is opt-in so the normal unit-test suite stays offline:
 //
-//	SUBSONIC_TUI_DEMO_TEST=1 go test ./internal/subsonic -run TestPublicDemoReadOnly -v
+//	NAVIDROME_TUI_DEMO_TEST=1 go test ./internal/subsonic -run TestPublicDemoReadOnly -v
 //
 // Only read-only endpoints are used; no star/rating/playlist writes are sent
 // to the shared demo server. The public instance rate-limits bursts, so a
 // timeout is reported as a skip rather than a failure: the assertions here
 // verify auth, DTO mapping and URL building, not third-party availability.
 func TestPublicDemoReadOnly(t *testing.T) {
-	if os.Getenv("SUBSONIC_TUI_DEMO_TEST") != "1" {
-		t.Skip("set SUBSONIC_TUI_DEMO_TEST=1 to run against demo.navidrome.org")
+	if os.Getenv("NAVIDROME_TUI_DEMO_TEST") != "1" {
+		t.Skip("set NAVIDROME_TUI_DEMO_TEST=1 to run against demo.navidrome.org")
 	}
 	client, err := New(Options{
 		BaseURL:       "https://demo.navidrome.org",

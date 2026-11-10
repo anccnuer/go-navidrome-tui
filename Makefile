@@ -1,4 +1,4 @@
-BINARY := subsonic-tui
+BINARY := ndtui
 BIN_DIR := bin
 GO ?= go
 

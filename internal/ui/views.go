@@ -5,11 +5,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/anccnuer/go-navidrome-tui/internal/config"
+	"github.com/anccnuer/go-navidrome-tui/internal/model"
+	"github.com/anccnuer/go-navidrome-tui/internal/theme"
+	"github.com/anccnuer/go-navidrome-tui/internal/ui/components"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/subsonic-tui/subsonic-tui/internal/config"
-	"github.com/subsonic-tui/subsonic-tui/internal/model"
-	"github.com/subsonic-tui/subsonic-tui/internal/theme"
-	"github.com/subsonic-tui/subsonic-tui/internal/ui/components"
 )
 
 // View renders one complete frame. No IO or image decoding happens here.
@@ -49,14 +49,14 @@ func (m *Model) View() string {
 func (m *Model) statusCenter() string {
 	node := m.currentNode()
 	if node == nil {
-		return "subsonic-tui"
+		return "navidrome-tui"
 	}
 	total := len(node.Rows())
 	pos := 0
 	if total > 0 {
 		pos = min(node.Selected+1, total)
 	}
-	return fmt.Sprintf("subsonic-tui · [%d/%d]", pos, total)
+	return fmt.Sprintf("navidrome-tui · [%d/%d]", pos, total)
 }
 
 // breadcrumbTrail returns the navigation stack titles for the status bar.

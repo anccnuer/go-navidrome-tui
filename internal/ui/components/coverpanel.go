@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/subsonic-tui/subsonic-tui/internal/model"
-	"github.com/subsonic-tui/subsonic-tui/internal/theme"
+	"github.com/anccnuer/go-navidrome-tui/internal/model"
+	"github.com/anccnuer/go-navidrome-tui/internal/theme"
 )
 
 // RenderCoverPanel combines a pre-rendered half-block artwork with track

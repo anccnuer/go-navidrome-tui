@@ -3,7 +3,7 @@ package components
 import (
 	"strings"
 
-	"github.com/subsonic-tui/subsonic-tui/internal/theme"
+	"github.com/anccnuer/go-navidrome-tui/internal/theme"
 )
 
 // Hint is one key/description pair shown under the menu, mirroring

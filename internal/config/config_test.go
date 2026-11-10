@@ -90,10 +90,10 @@ func TestLoadMergesDefaults(t *testing.T) {
 }
 
 func TestEnvOverride(t *testing.T) {
-	t.Setenv("SUBSONIC_TUI_URL", "https://env.example.com/")
-	t.Setenv("SUBSONIC_TUI_USER", "envuser")
-	t.Setenv("SUBSONIC_TUI_PASSWORD", "envpass")
-	t.Setenv("SUBSONIC_TUI_THEME", "gruvbox")
+	t.Setenv("NAVIDROME_TUI_URL", "https://env.example.com/")
+	t.Setenv("NAVIDROME_TUI_USER", "envuser")
+	t.Setenv("NAVIDROME_TUI_PASSWORD", "envpass")
+	t.Setenv("NAVIDROME_TUI_THEME", "gruvbox")
 	c, err := Load(filepath.Join(t.TempDir(), "missing.toml"))
 	if err != nil {
 		t.Fatal(err)
@@ -104,6 +104,47 @@ func TestEnvOverride(t *testing.T) {
 	}
 	if c.Theme.Name != "gruvbox" {
 		t.Fatalf("theme override failed: %q", c.Theme.Name)
+	}
+}
+
+// The old variable names must keep working for existing scripts/shells.
+func TestLegacyEnvOverride(t *testing.T) {
+	t.Setenv("SUBSONIC_TUI_URL", "https://legacy.example.com/")
+	t.Setenv("SUBSONIC_TUI_USER", "legacyuser")
+	t.Setenv("SUBSONIC_TUI_THEME", "nord")
+	c, err := Load(filepath.Join(t.TempDir(), "missing.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, ok := c.ActiveServer()
+	if !ok || s.URL != "https://legacy.example.com" || s.Username != "legacyuser" {
+		t.Fatalf("legacy env override failed: %+v, %v", s, ok)
+	}
+	if c.Theme.Name != "nord" {
+		t.Fatalf("legacy theme override failed: %q", c.Theme.Name)
+	}
+}
+
+func TestLegacyConfigPathFallback(t *testing.T) {
+	dir := t.TempDir()
+	if runtime.GOOS == "windows" {
+		t.Setenv("APPDATA", dir)
+	} else {
+		t.Setenv("XDG_CONFIG_HOME", dir)
+	}
+	legacy := filepath.Join(dir, "subsonic-tui")
+	if err := os.MkdirAll(legacy, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(legacy, "config.toml"), []byte("active = \"home\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Path()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != filepath.Join(legacy, "config.toml") {
+		t.Fatalf("legacy config not reused: %q", got)
 	}
 }
 

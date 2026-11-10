@@ -1,4 +1,4 @@
-# subsonic-tui
+# go-navidrome-tui
 
 一款用 Go 编写的终端 TUI 音乐播放器，面向 [Navidrome](https://www.navidrome.org/)（Subsonic / OpenSubsonic API）。界面按 [go-musicfox](https://github.com/go-musicfox/go-musicfox) 的设计改造：水平居中的无边框菜单、`=> 12.` 行骨架、选中项仅变色高亮、状态栏面包屑、`#` 渐变进度条与菜单下方的键位提示行；文字只用前景色、不铺底色色块，默认使用其网易红主题，并保留主题热切换。
 
@@ -7,7 +7,7 @@
 ## 界面预览（结构示意）
 
 ```
- » 主页 / 全部歌曲                subsonic-tui · [3/120]                 ● 已连接   home
+ » 主页 / 全部歌曲                navidrome-tui · [3/120]                 ● 已连接   home
 
                              ← 全部歌曲 · 128 首
 
@@ -54,32 +54,32 @@
 需要 Go 1.26+（`go.mod` 的 `go` 指令为 1.26.0，由 Charm 组件的最低版本要求决定）。
 
 ```bash
-git clone <your-repo-url> subsonic-tui
-cd subsonic-tui
-make build          # Windows 输出 bin/subsonic-tui.exe，其它平台输出 bin/subsonic-tui
-make run            # 或直接 go run ./cmd/subsonic-tui
+git clone https://github.com/anccnuer/go-navidrome-tui.git
+cd go-navidrome-tui
+make build          # Windows 输出 bin/ndtui.exe，其它平台输出 bin/ndtui
+make run            # 或直接 go run ./cmd/ndtui
 make test           # 全量单元测试
 ```
 
 也可直接编译（PowerShell）：
 
 ```powershell
-go build -o bin/subsonic-tui.exe ./cmd/subsonic-tui
-.\bin\subsonic-tui.exe
+go build -o bin/ndtui.exe ./cmd/ndtui
+.\bin\ndtui.exe
 ```
 
 Linux/macOS：
 
 ```bash
-go build -o bin/subsonic-tui ./cmd/subsonic-tui
-./bin/subsonic-tui
+go build -o bin/ndtui ./cmd/ndtui
+./bin/ndtui
 ```
 
 命令行参数：
 
 | 参数 | 说明 |
 | --- | --- |
-| `--config <path>` | 指定配置文件路径（等价于环境变量 `SUBSONIC_TUI_CONFIG`） |
+| `--config <path>` | 指定配置文件路径（等价于环境变量 `NAVIDROME_TUI_CONFIG`） |
 | `--debug` | 启用 debug 日志（写入日志文件，不会污染 TUI） |
 | `--version` | 显示版本 |
 
@@ -95,16 +95,16 @@ go build -o bin/subsonic-tui ./cmd/subsonic-tui
 启动后在向导中填写即可，也可用环境变量跳过向导（PowerShell）：
 
 ```powershell
-$env:SUBSONIC_TUI_URL='https://demo.navidrome.org'
-$env:SUBSONIC_TUI_USER='demo'
-$env:SUBSONIC_TUI_PASSWORD='demo'
-.\bin\subsonic-tui.exe
+$env:NAVIDROME_TUI_URL='https://demo.navidrome.org'
+$env:NAVIDROME_TUI_USER='demo'
+$env:NAVIDROME_TUI_PASSWORD='demo'
+.\bin\ndtui.exe
 ```
 
 项目自带一个默认跳过的只读集成测试，用同一实例核对认证、端点与 DTO 解析：
 
 ```bash
-SUBSONIC_TUI_DEMO_TEST=1 go test ./internal/subsonic -run TestPublicDemoReadOnly -v
+NAVIDROME_TUI_DEMO_TEST=1 go test ./internal/subsonic -run TestPublicDemoReadOnly -v
 ```
 
 ## 配置
@@ -115,9 +115,11 @@ SUBSONIC_TUI_DEMO_TEST=1 go test ./internal/subsonic -run TestPublicDemoReadOnly
 
 | 平台 | 路径 |
 | --- | --- |
-| Windows | `%AppData%\subsonic-tui\config.toml` |
-| Linux | `$XDG_CONFIG_HOME/subsonic-tui/config.toml` 或 `~/.config/subsonic-tui/config.toml` |
-| macOS | `~/Library/Application Support/subsonic-tui/config.toml` |
+| Windows | `%AppData%\navidrome-tui\config.toml` |
+| Linux | `$XDG_CONFIG_HOME/navidrome-tui/config.toml` 或 `~/.config/navidrome-tui/config.toml` |
+| macOS | `~/Library/Application Support/navidrome-tui/config.toml` |
+
+> 从旧版本升级无需重新登录：若新目录尚无配置，程序会自动读取旧 `subsonic-tui` 目录下的 `config.toml`；旧环境变量 `SUBSONIC_TUI_*` 也仍可作为 `NAVIDROME_TUI_*` 的别名使用（新名优先）。
 
 完整配置项见 [`config.example.toml`](./config.example.toml)。要点：
 
@@ -125,13 +127,13 @@ SUBSONIC_TUI_DEMO_TEST=1 go test ./internal/subsonic -run TestPublicDemoReadOnly
 - 密码以 `enc:<hex>` 形式保存，**这只是避免明文展示，不是加密**。更安全的方式是不写 `password`，改用环境变量：
 
 ```bash
-SUBSONIC_TUI_URL=https://music.example.com \
-SUBSONIC_TUI_USER=alice \
-SUBSONIC_TUI_PASSWORD=secret \
-./bin/subsonic-tui
+NAVIDROME_TUI_URL=https://music.example.com \
+NAVIDROME_TUI_USER=alice \
+NAVIDROME_TUI_PASSWORD=secret \
+./bin/ndtui
 ```
 
-其它环境变量：`SUBSONIC_TUI_CONFIG`、`SUBSONIC_TUI_THEME`、`SUBSONIC_TUI_MPV`、`SUBSONIC_TUI_LOG_LEVEL`、`SUBSONIC_TUI_SERVER_NAME`。
+其它环境变量：`NAVIDROME_TUI_CONFIG`、`NAVIDROME_TUI_THEME`、`NAVIDROME_TUI_MPV`、`NAVIDROME_TUI_LOG_LEVEL`、`NAVIDROME_TUI_SERVER_NAME`。
 
 - `[keybindings]` 支持覆盖任意**非内置**操作：值可为单个键或键数组，空字符串表示取消绑定；`useDefaultKeyBindings = false` 可完全自定义（内置导航键始终保留）。示例：
 
@@ -206,7 +208,7 @@ make windows linux darwin   # 交叉编译（使用 shell 环境变量前缀，W
 目录结构：
 
 ```
-cmd/subsonic-tui/     入口
+cmd/ndtui/     入口
 internal/app/         依赖装配与优雅退出
 internal/config/      TOML 配置、路径、原子保存
 internal/subsonic/    (Open)Subsonic REST 客户端与 DTO

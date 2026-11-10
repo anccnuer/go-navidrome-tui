@@ -1,8 +1,8 @@
 package ui
 
 import (
+	"github.com/anccnuer/go-navidrome-tui/internal/model"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/subsonic-tui/subsonic-tui/internal/model"
 )
 
 // pushNode enters a new navigation level and starts loading it asynchronously.

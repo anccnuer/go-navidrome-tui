@@ -156,7 +156,7 @@ func (c *Config) normalize() {
 		c.Theme.Name = "aurora"
 	}
 	if c.Player.SocketName == "" {
-		c.Player.SocketName = "subsonic-tui-mpv"
+		c.Player.SocketName = "ndtui-mpv"
 	}
 	if c.Player.Mode == "" {
 		c.Player.Mode = "sequential"
@@ -198,31 +198,33 @@ func (c *Config) applyEnv() {
 		}
 		return ""
 	}
-	if v := get("SUBSONIC_TUI_URL"); v != "" {
+	// New NAVIDROME_TUI_* names win; old SUBSONIC_TUI_* names stay as aliases
+	// so existing scripts and shells keep working after the rename.
+	if v := get("NAVIDROME_TUI_URL", "SUBSONIC_TUI_URL"); v != "" {
 		s, ok := c.ActiveServer()
 		if !ok {
 			s = Server{Name: "default"}
 		}
 		s.URL = strings.TrimRight(v, "/")
-		if v := get("SUBSONIC_TUI_USER", "SUBSONIC_TUI_USERNAME"); v != "" {
+		if v := get("NAVIDROME_TUI_USER", "NAVIDROME_TUI_USERNAME", "SUBSONIC_TUI_USER", "SUBSONIC_TUI_USERNAME"); v != "" {
 			s.Username = v
 		}
-		if v := get("SUBSONIC_TUI_PASSWORD"); v != "" {
+		if v := get("NAVIDROME_TUI_PASSWORD", "SUBSONIC_TUI_PASSWORD"); v != "" {
 			s.Password = v
 		}
-		if n := get("SUBSONIC_TUI_SERVER_NAME"); n != "" {
+		if n := get("NAVIDROME_TUI_SERVER_NAME", "SUBSONIC_TUI_SERVER_NAME"); n != "" {
 			s.Name = n
 		}
 		c.SetServer(s)
 		c.Active = s.Name
 	}
-	if v := get("SUBSONIC_TUI_THEME"); v != "" {
+	if v := get("NAVIDROME_TUI_THEME", "SUBSONIC_TUI_THEME"); v != "" {
 		c.Theme.Name = v
 	}
-	if v := get("SUBSONIC_TUI_LOG_LEVEL"); v != "" {
+	if v := get("NAVIDROME_TUI_LOG_LEVEL", "SUBSONIC_TUI_LOG_LEVEL"); v != "" {
 		c.Log.Level = v
 	}
-	if v := get("SUBSONIC_TUI_MPV"); v != "" {
+	if v := get("NAVIDROME_TUI_MPV", "SUBSONIC_TUI_MPV"); v != "" {
 		c.Player.MPVPath = v
 	}
 }
@@ -230,7 +232,7 @@ func (c *Config) applyEnv() {
 func isWindows() bool { return runtime.GOOS == "windows" }
 
 // EncodeSecret obfuscates a password so it is not stored as readable plain
-// text. It is NOT encryption: use SUBSONIC_TUI_PASSWORD for real secrecy.
+// text. It is NOT encryption: use NAVIDROME_TUI_PASSWORD for real secrecy.
 func EncodeSecret(plain string) string {
 	return "enc:" + hex.EncodeToString([]byte(plain))
 }

@@ -11,13 +11,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/anccnuer/go-navidrome-tui/internal/config"
+	"github.com/anccnuer/go-navidrome-tui/internal/keymap"
+	"github.com/anccnuer/go-navidrome-tui/internal/player"
+	"github.com/anccnuer/go-navidrome-tui/internal/scrobbler"
+	"github.com/anccnuer/go-navidrome-tui/internal/subsonic"
+	"github.com/anccnuer/go-navidrome-tui/internal/ui"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/subsonic-tui/subsonic-tui/internal/config"
-	"github.com/subsonic-tui/subsonic-tui/internal/keymap"
-	"github.com/subsonic-tui/subsonic-tui/internal/player"
-	"github.com/subsonic-tui/subsonic-tui/internal/scrobbler"
-	"github.com/subsonic-tui/subsonic-tui/internal/subsonic"
-	"github.com/subsonic-tui/subsonic-tui/internal/ui"
 )
 
 // Options controls startup.

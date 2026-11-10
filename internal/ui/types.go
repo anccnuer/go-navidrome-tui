@@ -6,12 +6,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/subsonic-tui/subsonic-tui/internal/config"
-	"github.com/subsonic-tui/subsonic-tui/internal/keymap"
-	"github.com/subsonic-tui/subsonic-tui/internal/model"
-	"github.com/subsonic-tui/subsonic-tui/internal/player"
-	"github.com/subsonic-tui/subsonic-tui/internal/subsonic"
-	"github.com/subsonic-tui/subsonic-tui/internal/ui/components"
+	"github.com/anccnuer/go-navidrome-tui/internal/config"
+	"github.com/anccnuer/go-navidrome-tui/internal/keymap"
+	"github.com/anccnuer/go-navidrome-tui/internal/model"
+	"github.com/anccnuer/go-navidrome-tui/internal/player"
+	"github.com/anccnuer/go-navidrome-tui/internal/subsonic"
+	"github.com/anccnuer/go-navidrome-tui/internal/ui/components"
 )
 
 // ScrobbleService is implemented by the scrobbler package.

@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/subsonic-tui/subsonic-tui/internal/config"
-	"github.com/subsonic-tui/subsonic-tui/internal/model"
+	"github.com/anccnuer/go-navidrome-tui/internal/config"
+	"github.com/anccnuer/go-navidrome-tui/internal/model"
 )
 
 // NavidromeClient is the narrow subset of the Subsonic client we need.

@@ -7,14 +7,19 @@ import (
 
 const (
 	// AppName is used for the config/cache directory and the log file.
-	AppName = "subsonic-tui"
+	AppName = "navidrome-tui"
 	// EnvConfig overrides the config file location.
-	EnvConfig = "SUBSONIC_TUI_CONFIG"
+	EnvConfig = "NAVIDROME_TUI_CONFIG"
+
+	// Legacy names are still read so an existing installation does not lose
+	// its saved servers after the rename.
+	legacyAppName   = "subsonic-tui"
+	legacyEnvConfig = "SUBSONIC_TUI_CONFIG"
 )
 
 // Dir returns the platform user config directory for the app:
-// Windows %AppData%\subsonic-tui, Linux $XDG_CONFIG_HOME/subsonic-tui,
-// macOS ~/Library/Application Support/subsonic-tui.
+// Windows %AppData%\navidrome-tui, Linux $XDG_CONFIG_HOME/navidrome-tui,
+// macOS ~/Library/Application Support/navidrome-tui.
 func Dir() (string, error) {
 	base, err := os.UserConfigDir()
 	if err != nil {
@@ -23,16 +28,28 @@ func Dir() (string, error) {
 	return filepath.Join(base, AppName), nil
 }
 
-// Path returns the config.toml path (honouring SUBSONIC_TUI_CONFIG).
+// Path returns the config.toml path (honouring NAVIDROME_TUI_CONFIG). If the
+// new location has no config yet, a config written by the old name is used.
 func Path() (string, error) {
 	if p := os.Getenv(EnvConfig); p != "" {
+		return p, nil
+	}
+	if p := os.Getenv(legacyEnvConfig); p != "" {
 		return p, nil
 	}
 	dir, err := Dir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, "config.toml"), nil
+	primary := filepath.Join(dir, "config.toml")
+	if _, err := os.Stat(primary); err == nil {
+		return primary, nil
+	}
+	legacy := filepath.Join(filepath.Dir(dir), legacyAppName, "config.toml")
+	if _, err := os.Stat(legacy); err == nil {
+		return legacy, nil
+	}
+	return primary, nil
 }
 
 // CacheDir returns the directory used for cover thumbnails and the log file.

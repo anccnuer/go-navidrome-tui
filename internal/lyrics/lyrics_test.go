@@ -3,7 +3,7 @@ package lyrics
 import (
 	"testing"
 
-	"github.com/subsonic-tui/subsonic-tui/internal/model"
+	"github.com/anccnuer/go-navidrome-tui/internal/model"
 )
 
 func TestParseLRC(t *testing.T) {

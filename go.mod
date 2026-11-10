@@ -1,4 +1,4 @@
-module github.com/subsonic-tui/subsonic-tui
+module github.com/anccnuer/go-navidrome-tui
 
 go 1.26.0
 

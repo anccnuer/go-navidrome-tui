@@ -3,7 +3,7 @@ package components
 import (
 	"strings"
 
-	"github.com/subsonic-tui/subsonic-tui/internal/theme"
+	"github.com/anccnuer/go-navidrome-tui/internal/theme"
 )
 
 // StatusInfo is the data shown by the always-on status bar.
@@ -15,7 +15,7 @@ type StatusInfo struct {
 	Warning    bool
 	// Breadcrumb is the navigation trail, mirroring go-musicfox's status bar.
 	Breadcrumb []string
-	// Center is the injected middle segment ("subsonic-tui · [3/120] · …").
+	// Center is the injected middle segment ("navidrome-tui · [3/120] · …").
 	Center string
 }
 

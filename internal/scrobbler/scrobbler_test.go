@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/subsonic-tui/subsonic-tui/internal/config"
-	"github.com/subsonic-tui/subsonic-tui/internal/model"
+	"github.com/anccnuer/go-navidrome-tui/internal/config"
+	"github.com/anccnuer/go-navidrome-tui/internal/model"
 )
 
 func TestSignature(t *testing.T) {
