@@ -158,6 +158,15 @@ func (c *Config) normalize() {
 	if c.Player.SocketName == "" {
 		c.Player.SocketName = "ndtui-mpv"
 	}
+	if c.UI.CoverProtocol == "" {
+		c.UI.CoverProtocol = "text"
+	}
+	if c.UI.SixelCellWidth <= 0 {
+		c.UI.SixelCellWidth = 8
+	}
+	if c.UI.SixelCellHeight <= 0 {
+		c.UI.SixelCellHeight = 16
+	}
 	if c.Player.Mode == "" {
 		c.Player.Mode = "sequential"
 	}

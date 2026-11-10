@@ -86,6 +86,7 @@ go build -o bin/ndtui ./cmd/ndtui
 | `--config <path>` | 指定配置文件（同 `NAVIDROME_TUI_CONFIG`） |
 | `--debug` | 开 debug 日志，只写文件，不刷屏 |
 | `--version` | 打印版本 |
+| `--sixel-check` | 输出 Sixel 自检图与终端能力信息，然后退出 |
 
 ## 想先试试
 
@@ -175,6 +176,34 @@ NAVIDROME_TUI_PASSWORD=secret \
 
 日志默认只写 `warn` 级别到文件，URL 里的 token、salt、密码都会脱敏。
 
+## 封面：半块字符还是 Sixel
+
+默认用半块字符画封面：每个字符格是 `▀`，前景色是上半个像素、背景色是下半个像素。不依赖任何图形协议，SSH、tmux、16 色终端都能显示。
+
+如果你的终端支持 Sixel（Windows Terminal 1.22+、mlterm、foot、wezterm 等），先在**真实终端**里跑一次自检：
+
+```bash
+ndtui --sixel-check
+```
+
+它会打印检测到的环境，再画一张 240×120 的渐变图。看到图，说明 DCS 序列确实穿过了 ConPTY 并被终端画出来；然后在配置里开启：
+
+```toml
+[ui]
+coverProtocol = "sixel"
+sixelCellWidth = 8      # 一个字符格多少像素，按字体调
+sixelCellHeight = 16
+```
+
+Sixel 不能塞进每帧重绘的文本里（Bubble Tea 会截断、跳过或擦掉它），所以程序走带外通道：在文本帧写完后按屏幕坐标单独发送图形，播放页给封面留一块固定的空白区。图片只在切歌、缩放、进出播放页时重发并带缓存，不会随 500ms 刷新反复传输。
+
+几个实话实说的限制：
+
+- **默认是 `text`**，Sixel 需要手动开启。旧版 Windows Terminal 也带 `WT_SESSION`，光靠环境变量判断会误伤，所以不做自动启用。
+- 检测不到图形终端、在 tmux/SSH 里、或编码失败，都会自动回退到半块字符，不会白屏。
+- Sixel 没有"删除单张图"的指令。离开播放页时靠清屏重绘擦掉；如果某些终端在清行时把图形擦没了，按 `r` 重绘可重新发送，或把 `coverProtocol` 改回 `text`。
+- 图片比例不对就调 `sixelCellWidth` / `sixelCellHeight`。
+
 ## 常见问题
 
 | 现象 | 怎么办 |
@@ -185,7 +214,7 @@ NAVIDROME_TUI_PASSWORD=secret \
 | 连接超时 | 向导会重试一次；demo 实例常有负载限制，等会儿再试或换自己的 Navidrome。 |
 | 鼠标点击没反应 | 确认 `[ui] enableMouse` 不是 `false`（旧配置里可能是），并用支持鼠标报告的终端。 |
 | 歌词一直是空的 | Navidrome 需要嵌入歌词或同名 `.lrc`；程序优先用 OpenSubsonic `getLyricsBySongId`，没有再回退 `getLyrics`。 |
-| 封面是一堆色块 | 本来就是半块字符画的。开 `ui.trueColor = true` 看真彩，关掉会降到 256 色。 |
+| 封面是一堆色块 | 本来就是半块字符画的。开 `ui.trueColor = true` 看真彩，关掉会降到 256 色；想要真正的图片可以试试 Sixel（见上一节）。 |
 | 排版歪了 | 换等宽字体（中文也要等宽）；宽屏双列可在配置里设 `ui.doubleColumn = false`。 |
 | 按键没反应 | 先看是不是在输入框里，`Esc` 退出；`F2` 设置页能看到快捷键冲突数。 |
 | 帮助页里 `q` 不退出 | 帮助页默认在过滤输入状态，按 `Esc` 返回，或 `Ctrl+C` 退出。 |

@@ -3,12 +3,14 @@ package ui
 import (
 	"context"
 	"fmt"
+	"image"
 	"os/exec"
 	"runtime"
 	"time"
 
 	"github.com/anccnuer/go-navidrome-tui/internal/config"
 	"github.com/anccnuer/go-navidrome-tui/internal/cover"
+	"github.com/anccnuer/go-navidrome-tui/internal/cover/sixel"
 	"github.com/anccnuer/go-navidrome-tui/internal/keymap"
 	"github.com/anccnuer/go-navidrome-tui/internal/model"
 	"github.com/anccnuer/go-navidrome-tui/internal/player"
@@ -35,9 +37,10 @@ type searchLoadedMsg struct {
 }
 
 type coverLoadedMsg struct {
-	key string
-	art string
-	err error
+	key   string
+	art   string // portable half-block artwork (always present as fallback)
+	sixel string // optional DCS payload, empty when unavailable
+	err   error
 }
 
 type lyricsLoadedMsg struct {
@@ -129,8 +132,24 @@ func (m *Model) searchCmd(query string) tea.Cmd {
 func (m *Model) coverCmd(song model.Song, width, height int) tea.Cmd {
 	key := cover.CacheKey(song.CoverID, width, height, m.depth)
 	m.coverKey = key
+	// Sixel works in pixels, while the text artwork works in character cells.
+	// Convert with the configured cell size so both representations cover the
+	// same rectangle of the screen.
+	pxW, pxH := 0, 0
+	if m.sixelLayer != nil && m.sixelLayer.Enabled() {
+		cellW, cellH := m.cfg.UI.SixelCellWidth, m.cfg.UI.SixelCellHeight
+		if cellW < 1 {
+			cellW = 8
+		}
+		if cellH < 1 {
+			cellH = 16
+		}
+		pxW, pxH = width*cellW, height*cellH
+	}
+	sixelKey := fmt.Sprintf("%s:sixel:%dx%d", key, pxW, pxH)
 	if art, ok := m.coverCache.Get(key); ok {
-		return func() tea.Msg { return coverLoadedMsg{key: key, art: art} }
+		cached, _ := m.coverCache.Get(sixelKey)
+		return func() tea.Msg { return coverLoadedMsg{key: key, art: art, sixel: cached} }
 	}
 	client := m.deps.API()
 	colors := append([]string(nil), m.styles.T.Gradient...)
@@ -142,22 +161,41 @@ func (m *Model) coverCmd(song model.Song, width, height int) tea.Cmd {
 	const requestSize = 320
 	return func() tea.Msg {
 		placeholder := cover.RenderPlaceholder(seed, width, height, depth, colors)
+		// A Sixel placeholder keeps the artwork area visually stable while the
+		// real cover is loading; an encode failure simply falls back to text.
+		encode := func(img image.Image) string {
+			if pxW < 1 {
+				return ""
+			}
+			out, err := sixel.Encode(img, pxW, pxH)
+			if err != nil {
+				return ""
+			}
+			m.coverCache.Set(sixelKey, out)
+			return out
+		}
+		fallback := func(err error) coverLoadedMsg {
+			return coverLoadedMsg{
+				key: key, art: placeholder,
+				sixel: encode(sixel.GradientImage(width, height)), err: err,
+			}
+		}
 		if client == nil || coverID == "" {
-			return coverLoadedMsg{key: key, art: placeholder}
+			return fallback(nil)
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 		data, err := client.GetCover(ctx, coverID, requestSize)
 		if err != nil {
-			return coverLoadedMsg{key: key, art: placeholder, err: err}
+			return fallback(err)
 		}
 		img, err := cover.Decode(data)
 		if err != nil {
-			return coverLoadedMsg{key: key, art: placeholder, err: err}
+			return fallback(err)
 		}
 		art := cover.Render(img, width, height, depth)
 		m.coverCache.Set(key, art)
-		return coverLoadedMsg{key: key, art: art}
+		return coverLoadedMsg{key: key, art: art, sixel: encode(img)}
 	}
 }
 

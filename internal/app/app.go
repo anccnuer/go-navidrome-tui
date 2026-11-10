@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/anccnuer/go-navidrome-tui/internal/config"
+	"github.com/anccnuer/go-navidrome-tui/internal/cover/sixel"
 	"github.com/anccnuer/go-navidrome-tui/internal/keymap"
 	"github.com/anccnuer/go-navidrome-tui/internal/player"
 	"github.com/anccnuer/go-navidrome-tui/internal/scrobbler"
@@ -130,12 +131,26 @@ func Build(opts Options) (*Result, error) {
 
 	m := ui.New(deps)
 
+	// Sixel graphics are opt-in. When enabled, DCS payloads are appended after
+	// each text frame by the wrapped writer instead of being embedded in
+	// View() (the standard renderer would truncate/diff them away).
+	sixelEnabled := cfg.UI.ShowCover && cfg.UI.CoverProtocol == "sixel" &&
+		sixel.ReadEnvironment().LikelySupported()
+	sixelLayer := sixel.NewLayer(sixelEnabled)
+	m.SetSixelLayer(sixelLayer)
+	output := &sixel.Writer{Out: os.Stdout, Layer: sixelLayer}
+	if !sixelEnabled && cfg.UI.CoverProtocol == "sixel" {
+		logger.Warn("Sixel 已配置但当前终端环境未通过检测，回退为纯文本封面")
+	}
+
 	// Bracketed paste can leave the input parser waiting for a terminating
 	// \x1b[201~ when mouse/CSI sequences get interleaved (seen on Windows
 	// Terminal + ConPTY), which makes every subsequent key appear dead.
 	// Input fields already clean pasted text via cleanInput, so disabling the
 	// protocol costs no functionality and removes that failure mode.
-	options := []tea.ProgramOption{tea.WithAltScreen(), tea.WithoutBracketedPaste()}
+	options := []tea.ProgramOption{
+		tea.WithAltScreen(), tea.WithoutBracketedPaste(), tea.WithOutput(output),
+	}
 	if cfg.UI.EnableMouse {
 		options = append(options, tea.WithMouseCellMotion())
 	}

@@ -15,9 +15,15 @@ import (
 // View renders one complete frame. No IO or image decoding happens here.
 func (m *Model) View() string {
 	if m.width < 24 || m.height < 8 {
+		if m.sixelLayer != nil {
+			m.sixelLayer.Invalidate()
+		}
 		return m.styles.Warning.Render("终端窗口太小，请至少调整为 24×8")
 	}
 	if m.view == model.ViewWizard {
+		if m.sixelLayer != nil {
+			m.sixelLayer.Invalidate()
+		}
 		return m.wizard.render(m.styles, m.width, m.height)
 	}
 
@@ -41,6 +47,7 @@ func (m *Model) View() string {
 		parts = append(parts, toastLine)
 	}
 	parts = append(parts, now)
+	m.syncSixel()
 	return components.FitHeight(strings.Join(parts, "\n"), m.height)
 }
 
@@ -117,6 +124,18 @@ func (m *Model) immersiveLayout() (leftPad, artW, lyricW, artH, gap int) {
 	return leftPad, artW, lyricW, artH, gap
 }
 
+// sixelOrigin returns the 1-based terminal cell at which the artwork starts.
+// It mirrors renderNowPlaying's panel borders, title row and vertical centring
+// so a DCS image lands exactly on the reserved blank area.
+func (m *Model) sixelOrigin() (row, col int) {
+	leftPad, _, _, artH, _ := m.immersiveLayout()
+	rows := max(4, m.bodyHeight()-3)
+	top := max(0, (rows-(artH+2))/2)
+	// status bar (1) + panel top border (1) + panel title row (1) = 3,
+	// then the content block starts on the next row.
+	return top + 4, leftPad + 2
+}
+
 // renderNowPlaying is the immersive, two-column playback screen (z).
 func (m *Model) renderNowPlaying(width, height int) string {
 	info := m.nowPlayingInfo()
@@ -132,6 +151,17 @@ func (m *Model) renderNowPlaying(width, height int) string {
 	artLines := []string{m.styles.EmptyGlyph.Render("♪   ♫   ♪")}
 	if m.coverArt != "" {
 		artLines = strings.Split(m.coverArt, "\n")
+	}
+	if m.sixelActive() {
+		// The real image is drawn by the side-channel writer. These rows stay
+		// constant across frames so Bubble Tea's line diff skips them and the
+		// terminal graphics are not erased by a repaint.
+		_, w, _, h, _ := m.immersiveLayout()
+		blank := strings.Repeat(" ", w)
+		artLines = make([]string, h)
+		for i := range artLines {
+			artLines[i] = blank
+		}
 	}
 	titleLine := centerLine(m.styles.Primary.Bold(true).Render(
 		components.Truncate(title, artW)), artW)

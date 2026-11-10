@@ -75,6 +75,13 @@ type UIConfig struct {
 	TrueColor    bool `toml:"trueColor" comment:"关闭可强制 256 色降级"`
 	CoverWidth   int  `toml:"coverWidth"`
 	CompactWidth int  `toml:"compactWidth" comment:"窄于该列数时收起侧栏"`
+
+	// coverProtocol is opt-in: "text" keeps the portable half-block artwork,
+	// "sixel" sends a DCS image on the side channel (requires a Sixel-capable
+	// terminal such as Windows Terminal >= 1.22).
+	CoverProtocol   string `toml:"coverProtocol" comment:"text（默认）| sixel，Sixel 需终端支持"`
+	SixelCellWidth  int    `toml:"sixelCellWidth" comment:"字符格宽度（像素），用于换算 Sixel 图片尺寸"`
+	SixelCellHeight int    `toml:"sixelCellHeight" comment:"字符格高度（像素）"`
 }
 
 // LastFMConfig enables optional scrobbling to Last.fm.
@@ -115,13 +122,16 @@ func Default() *Config {
 			CoverCacheSize: 64,
 		},
 		UI: UIConfig{
-			EnableMouse:  true,
-			ShowCover:    true,
-			DoubleColumn: true,
-			Animations:   true,
-			TrueColor:    true,
-			CoverWidth:   26,
-			CompactWidth: 60,
+			EnableMouse:     true,
+			ShowCover:       true,
+			DoubleColumn:    true,
+			Animations:      true,
+			TrueColor:       true,
+			CoverWidth:      26,
+			CompactWidth:    60,
+			CoverProtocol:   "text",
+			SixelCellWidth:  8,
+			SixelCellHeight: 16,
 		},
 		LastFM: LastFMConfig{ScrobbleAt: 50},
 		Log:    LogConfig{Level: "warn"},

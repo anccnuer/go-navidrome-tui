@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/anccnuer/go-navidrome-tui/internal/config"
+	"github.com/anccnuer/go-navidrome-tui/internal/cover/sixel"
 	"github.com/anccnuer/go-navidrome-tui/internal/keymap"
 	"github.com/anccnuer/go-navidrome-tui/internal/model"
 	"github.com/anccnuer/go-navidrome-tui/internal/subsonic"
@@ -444,6 +445,41 @@ func TestPlainLyricsScrolling(t *testing.T) {
 // Regression: opening any child view from the immersive screen used to
 // overwrite prevView with ViewNowPlaying, so Esc/b/z all set the view back to
 // itself and the UI was permanently stuck.
+// Sixel artwork is drawn outside the text frame: the reserved area must be
+// constant blank rows, and the side-channel layer must receive one placement
+// (not one per tick).
+func TestSixelReservesBlankArtworkArea(t *testing.T) {
+	m := testModel(t, true)
+	m.stack = []*Node{sampleNode()}
+	m.view = model.ViewNowPlaying
+	m.cfg.UI.CoverProtocol = "sixel"
+	layer := sixel.NewLayer(true)
+	m.SetSixelLayer(layer)
+	m.sixelArt = "SIXEL-PAYLOAD"
+	m.sixelKey = "song-1"
+
+	view := m.View()
+	if strings.Contains(view, "▀") {
+		t.Fatal("half-block artwork should not be drawn in Sixel mode")
+	}
+	frame, clear, ok := layer.Take()
+	if !ok || clear || !strings.Contains(frame, "SIXEL-PAYLOAD") {
+		t.Fatalf("layer was not scheduled: ok=%v clear=%v frame=%q", ok, clear, frame)
+	}
+	// A second identical frame must not resend the image.
+	_ = m.View()
+	if _, _, ok := layer.Take(); ok {
+		t.Fatal("unchanged artwork was re-sent on the next frame")
+	}
+
+	// Leaving the immersive screen clears the graphics layer.
+	m.view = model.ViewLibrary
+	_ = m.View()
+	if _, clear, ok := layer.Take(); !ok || !clear {
+		t.Fatal("leaving the immersive screen must clear the Sixel image")
+	}
+}
+
 func TestImmersiveExitAfterOpeningChildViews(t *testing.T) {
 	openKeys := []struct {
 		name string

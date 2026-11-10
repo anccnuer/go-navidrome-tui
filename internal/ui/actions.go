@@ -45,6 +45,7 @@ func (m *Model) runAction(a keymap.Action) tea.Cmd {
 		// A state change forces Bubble Tea to rebuild the frame; also refresh
 		// the artwork in case it was rendered before the palette/size changed.
 		m.spinnerFrame++
+		m.sixelGen++ // re-send a Sixel graphic that the terminal may have wiped
 		m.setStatusOK("界面已重新渲染")
 		return m.refreshCover()
 	case keymap.ActionMoveUp:

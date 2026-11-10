@@ -10,6 +10,7 @@ import (
 	"github.com/anccnuer/go-navidrome-tui/internal/cache"
 	"github.com/anccnuer/go-navidrome-tui/internal/config"
 	"github.com/anccnuer/go-navidrome-tui/internal/cover"
+	"github.com/anccnuer/go-navidrome-tui/internal/cover/sixel"
 	"github.com/anccnuer/go-navidrome-tui/internal/keymap"
 	"github.com/anccnuer/go-navidrome-tui/internal/model"
 	"github.com/anccnuer/go-navidrome-tui/internal/player"
@@ -68,6 +69,11 @@ type Model struct {
 
 	coverArt string
 	coverKey string
+	// Sixel artwork is sent outside the text frame; see internal/cover/sixel.
+	sixelLayer *sixel.Layer
+	sixelArt   string
+	sixelKey   string
+	sixelGen   int // bumped by r so a lost graphic can be re-sent
 
 	statusWarn bool
 	toasts     []toast
@@ -175,6 +181,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.coverArt = msg.art
+		m.sixelArt = msg.sixel
+		m.sixelKey = msg.key
 		if msg.err != nil {
 			m.log.Debug("封面加载失败，已显示占位图", "err", msg.err)
 		}
@@ -366,11 +374,40 @@ func (m *Model) submitScrobble() {
 	m.deps.Scrobbler.Submitted(m.playerState.Song, m.scrobbleStarted)
 }
 
+// SetSixelLayer connects the side-channel layer created in app.Build.
+func (m *Model) SetSixelLayer(l *sixel.Layer) { m.sixelLayer = l }
+
+// sixelActive reports whether the immersive screen should reserve an empty
+// artwork area for a DCS image instead of drawing half-block characters.
+// A failed encode leaves sixelArt empty, which automatically falls back to
+// the portable text artwork.
+func (m *Model) sixelActive() bool {
+	return m.sixelLayer != nil && m.sixelLayer.Enabled() &&
+		m.view == model.ViewNowPlaying && m.sixelArt != ""
+}
+
+// syncSixel schedules (or removes) the side-channel image for this frame.
+func (m *Model) syncSixel() {
+	if m.sixelLayer == nil {
+		return
+	}
+	if !m.sixelActive() {
+		m.sixelLayer.Invalidate()
+		return
+	}
+	row, col := m.sixelOrigin()
+	// Include the origin in the key so a resize always re-sends the image.
+	m.sixelLayer.Place(row, col, m.sixelArt,
+		fmt.Sprintf("%s:%d:%d:%d", m.sixelKey, row, col, m.sixelGen))
+}
+
 func (m *Model) refreshCover() tea.Cmd {
 	// Artwork is only shown on the immersive screen now that the browser uses
 	// go-musicfox's borderless menu layout.
 	if !m.cfg.UI.ShowCover || m.view != model.ViewNowPlaying {
 		m.coverArt = ""
+		m.sixelArt = ""
+		m.sixelKey = ""
 		// Invalidate any in-flight cover response; otherwise it could refill
 		// coverArt with a stale size after we left the immersive screen.
 		m.coverKey = ""
@@ -379,11 +416,15 @@ func (m *Model) refreshCover() tea.Cmd {
 	_, artW, _, artH, _ := m.immersiveLayout()
 	if artW < 6 || artH < 3 {
 		m.coverArt = ""
+		m.sixelArt = ""
+		m.sixelKey = ""
 		return nil
 	}
 	song := m.playerState.Song
 	if song.ID == "" {
 		m.coverArt = cover.RenderPlaceholder("idle", artW, artH, m.depth, m.styles.T.Gradient)
+		m.sixelArt = ""
+		m.sixelKey = ""
 		m.coverKey = ""
 		return nil
 	}

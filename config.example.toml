@@ -64,6 +64,12 @@ animations = true
 trueColor = true
 coverWidth = 26
 compactWidth = 60
+# 封面渲染：text（默认，半块字符，任何终端都能显示）| sixel（需图形终端）
+# 开启 Sixel 前先在真实终端跑一次 `ndtui --sixel-check` 看测试图是否出现
+coverProtocol = "text"
+# Sixel 按像素绘制，这两个值用于把字符格换算成像素，按字体大小调整
+sixelCellWidth = 8
+sixelCellHeight = 16
 
 [lastfm]
 enabled = false
