@@ -34,9 +34,15 @@ func TestKillProcessTerminatesChild(t *testing.T) {
 		close(p.procDone)
 	}()
 
+	if cmd.ProcessState != nil {
+		t.Fatal("child exited before killProcess")
+	}
 	p.killProcess()
 
-	if cmd.ProcessState == nil || !cmd.ProcessState.Exited() {
+	// Exited() is not portable here: on Unix a SIGKILLed process is
+	// "signaled", so Exited() stays false. A non-nil ProcessState means
+	// Wait() reaped the child, i.e. it is gone on every platform.
+	if cmd.ProcessState == nil {
 		t.Fatal("child process was not terminated")
 	}
 }
@@ -65,7 +71,7 @@ func TestCloseIsIdempotentAndTerminatesChild(t *testing.T) {
 	if err := p.Close(); err != nil {
 		t.Fatalf("second close should be a no-op: %v", err)
 	}
-	if cmd.ProcessState == nil || !cmd.ProcessState.Exited() {
+	if cmd.ProcessState == nil {
 		t.Fatal("Close did not terminate the child process")
 	}
 }
