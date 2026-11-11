@@ -89,6 +89,26 @@ func TestLoadMergesDefaults(t *testing.T) {
 	}
 }
 
+func TestCoverProtocolNormalization(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.toml")
+	if err := os.WriteFile(path, []byte("[ui]\ncoverProtocol = ' Sixel '\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	c, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.UI.CoverProtocol != "sixel" {
+		t.Fatalf("coverProtocol = %q, want sixel", c.UI.CoverProtocol)
+	}
+	c.UI.CoverProtocol = "unknown"
+	c.normalize()
+	if c.UI.CoverProtocol != "text" {
+		t.Fatalf("unknown protocol should fall back to text, got %q", c.UI.CoverProtocol)
+	}
+}
+
 func TestEnvOverride(t *testing.T) {
 	t.Setenv("NAVIDROME_TUI_URL", "https://env.example.com/")
 	t.Setenv("NAVIDROME_TUI_USER", "envuser")

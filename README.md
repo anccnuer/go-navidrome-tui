@@ -86,7 +86,8 @@ go build -o bin/ndtui ./cmd/ndtui
 | `--config <path>` | 指定配置文件（同 `NAVIDROME_TUI_CONFIG`） |
 | `--debug` | 开 debug 日志，只写文件，不刷屏 |
 | `--version` | 打印版本 |
-| `--sixel-check` | 输出 Sixel 自检图与终端能力信息，然后退出 |
+| `--sixel-check` | 探测终端（DA1 / 字符格像素）并输出两张 Sixel 对照图，然后退出 |
+| `--sixel-dump <file>` | 把自检图的 Sixel 载荷写入文件，便于与 `chafa -f sixel` 对比 |
 
 ## 想先试试
 
@@ -180,28 +181,41 @@ NAVIDROME_TUI_PASSWORD=secret \
 
 默认用半块字符画封面：每个字符格是 `▀`，前景色是上半个像素、背景色是下半个像素。不依赖任何图形协议，SSH、tmux、16 色终端都能显示。
 
-如果你的终端支持 Sixel（Windows Terminal 1.22+、mlterm、foot、wezterm 等），先在**真实终端**里跑一次自检：
+如果你的终端支持 Sixel（Windows Terminal 1.22+、mlterm、foot、wezterm 等），先在**真实终端**里按下面的顺序验一遍：
 
 ```bash
-ndtui --sixel-check
+chafa -f sixel 某张图.png     # 第 1 步：自证终端。注意默认的 chafa 图片 用的是半块字符
+ndtui --sixel-check           # 第 2 步：自证程序
 ```
 
-它会打印检测到的环境，再画一张 240×120 的渐变图。看到图，说明 DCS 序列确实穿过了 ConPTY 并被终端画出来；然后在配置里开启：
+`--sixel-check` 会做三件事：
+
+1. **真探测**：向终端发 DA1（`CSI c`，属性 4 = Sixel）与字符格像素查询（`CSI 16 t`），带超时读应答，打印原始应答与实测字符格尺寸。
+2. **两张对照图**：图 1 是手写的 12×6 品红色块（公认正确的常量），图 2 是程序编码器生成的 240×120 渐变图。两张都出＝终端与编码器都正常；只出品红块＝编码器输出被拒（用 `ndtui --sixel-dump sixel.txt` 导出载荷和 chafa 对比）；两张都不出＝当前窗口不渲染 Sixel。
+3. **版本号**：第一行就写着版本，避免拿旧 exe 的结果排查新问题。
+
+确认能出图后，在配置里开启（`sixelCellWidth/Height` 按自检报告的实测字符格像素填）：
 
 ```toml
 [ui]
 coverProtocol = "sixel"
 sixelCellWidth = 8      # 一个字符格多少像素，按字体调
 sixelCellHeight = 16
+sixelColors = 256       # 调色板颜色数，2-256
 ```
 
-Sixel 不能塞进每帧重绘的文本里（Bubble Tea 会截断、跳过或擦掉它），所以程序走带外通道：在文本帧写完后按屏幕坐标单独发送图形，播放页给封面留一块固定的空白区。图片只在切歌、缩放、进出播放页时重发并带缓存，不会随 500ms 刷新反复传输。
+调色板不是固定的 4×4×4 色立方，而是按封面自身颜色做中位切分选出最多 256 色，再做 Floyd-Steinberg 抖动；Sixel 载荷按 6 像素带逐色 RLE 压缩，末尾的透明像素直接省略。所以 200×200 的封面包通常只有 30 KB 左右，肤色和渐变不会被压成几块色斑。
+
+Sixel 不能塞进每帧重绘的文本里（Bubble Tea 会截断、跳过或擦掉它），所以程序走带外通道：在文本帧写完后按屏幕坐标单独发送图形，播放页给封面留一块固定的空白区。图片带缓存，只在切歌、缩放、进出播放页，或歌词滚动让封面所在的行被文本重绘时重发；进度条、状态栏这类与封面无关的 500ms 刷新不会重复传输。短控制序列（切换备用屏幕、隐藏光标等）不会提前消费这张图。
 
 几个实话实说的限制：
 
-- **默认是 `text`**，Sixel 需要手动开启。旧版 Windows Terminal 也带 `WT_SESSION`，光靠环境变量判断会误伤，所以不做自动启用。
-- 检测不到图形终端、在 tmux/SSH 里、或编码失败，都会自动回退到半块字符，不会白屏。
-- Sixel 没有"删除单张图"的指令。离开播放页时靠清屏重绘擦掉；如果某些终端在清行时把图形擦没了，按 `r` 重绘可重新发送，或把 `coverProtocol` 改回 `text`。
+- **默认是 `text`**，`coverProtocol = "sixel"` 是显式强制开启。终端环境变量只作日志提示，不再偷偷改回 `text`：`TERM=dumb`、没设 `WT_SESSION`、SSH、tmux 里也按配置发 DCS。开启前务必先跑 `--sixel-check`；只有 stdout 被重定向到普通文件，或图片编码失败时才会回退到半块字符。
+- `WT_SESSION`、`TERM`、`COLORTERM` 这些环境变量**只作参考**：nushell 等 shell 常常不转发 `WT_SESSION`，IDE 内置终端（xterm.js）根本不支持 Sixel，`TERM` 在原生 Windows 进程里通常为空。别用它们下结论，用 `--sixel-check` 的 DA1 探测和两张对照图。
+- 编码器发送 `ESC P 0;1;0q`，与 Chafa / libsixel 一样把 `P2` 设为 1（零位透明）。裸 `ESC P q` 默认 `P2=0`，同一像素带里的多个颜色层会互相用背景色擦除，在 Windows Terminal 上表现为几行空白而不是图片。
+- Windows Terminal 1.22+ 画完 Sixel 会把光标移到图像下方（xterm/foot/WezTerm 留在起始行）。程序在 DCS 前后加了 `ESC 7` / `ESC 8` 保存恢复光标，否则 Bubble Tea 的相对光标移动会失步、把图片覆盖掉。
+- Bubble Tea 按整行重绘：歌词滚动会连带重写封面所在的那些行，图片必须重发。为了不让"擦掉→重画"被看见，文本帧和 DCS 载荷放进同一个写操作，并用 DECSET 2026（同步输出）包成一个原子帧；Windows Terminal 1.23.20211.0 起支持该模式，不支持的终端会忽略它、行为与以前一致。
+- Sixel 没有"删除单张图"的指令。离开播放页时靠清屏重绘擦掉；歌词滚动时被文本重绘擦到的部分会自动重发补回，个别终端仍显示不全时按 `r` 可强制重绘，或把 `coverProtocol` 改回 `text`。
 - 图片比例不对就调 `sixelCellWidth` / `sixelCellHeight`。
 
 ## 常见问题
@@ -215,6 +229,9 @@ Sixel 不能塞进每帧重绘的文本里（Bubble Tea 会截断、跳过或擦
 | 鼠标点击没反应 | 确认 `[ui] enableMouse` 不是 `false`（旧配置里可能是），并用支持鼠标报告的终端。 |
 | 歌词一直是空的 | Navidrome 需要嵌入歌词或同名 `.lrc`；程序优先用 OpenSubsonic `getLyricsBySongId`，没有再回退 `getLyrics`。 |
 | 封面是一堆色块 | 本来就是半块字符画的。开 `ui.trueColor = true` 看真彩，关掉会降到 256 色；想要真正的图片可以试试 Sixel（见上一节）。 |
+| 开了 Sixel 仍是色块 | 先 `chafa -f sixel 图.png` 自证终端（默认 chafa 是半块字符，有图也不算数），再 `ndtui --sixel-check` 看两张对照图。`sixelCellWidth/Height` 按自检报告的实测字符格填。 |
+| 自检只看到品红块、看不到渐变图 | 终端本身支持 Sixel，是本程序的载荷被拒。用 `ndtui --sixel-dump sixel.txt` 导出载荷，与 `chafa -f sixel` 的输出对比后反馈。 |
+| 自检两张图都没有 | 当前窗口不渲染 Sixel：conhost、VS Code / CodeBuddy 等 IDE 内置终端（xterm.js）、SSH/tmux 会话都属于这类；换 Windows Terminal 1.22+ 的标签页再试。 |
 | 排版歪了 | 换等宽字体（中文也要等宽）；宽屏双列可在配置里设 `ui.doubleColumn = false`。 |
 | 按键没反应 | 先看是不是在输入框里，`Esc` 退出；`F2` 设置页能看到快捷键冲突数。 |
 | 帮助页里 `q` 不退出 | 帮助页默认在过滤输入状态，按 `Esc` 返回，或 `Ctrl+C` 退出。 |

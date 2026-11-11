@@ -131,16 +131,30 @@ func Build(opts Options) (*Result, error) {
 
 	m := ui.New(deps)
 
-	// Sixel graphics are opt-in. When enabled, DCS payloads are appended after
-	// each text frame by the wrapped writer instead of being embedded in
-	// View() (the standard renderer would truncate/diff them away).
-	sixelEnabled := cfg.UI.ShowCover && cfg.UI.CoverProtocol == "sixel" &&
-		sixel.ReadEnvironment().LikelySupported()
+	// Sixel graphics are opt-in. coverProtocol="sixel" is an explicit request:
+	// environment variables are advisory (ConPTY/IDE terminals frequently
+	// report TERM=dumb or omit WT_SESSION), so they must not silently force a
+	// text fallback. DCS payloads are appended after each text frame by the
+	// wrapped writer instead of being embedded in View().
+	env := sixel.ReadEnvironment()
+	regularStdout := stdoutIsRegularFile()
+	sixelEnabled := sixel.ConfigEnabled(cfg.UI.ShowCover, cfg.UI.CoverProtocol, regularStdout)
 	sixelLayer := sixel.NewLayer(sixelEnabled)
 	m.SetSixelLayer(sixelLayer)
 	output := &sixel.Writer{Out: os.Stdout, Layer: sixelLayer}
-	if !sixelEnabled && cfg.UI.CoverProtocol == "sixel" {
-		logger.Warn("Sixel 已配置但当前终端环境未通过检测，回退为纯文本封面")
+	if regularStdout && strings.EqualFold(strings.TrimSpace(cfg.UI.CoverProtocol), "sixel") {
+		logger.Warn("Sixel 已配置但 stdout 被重定向到普通文件，回退为纯文本封面")
+	}
+	// Windows Terminal always sets WT_SESSION, so an empty one suggests conhost,
+	// an IDE terminal (xterm.js) or a shell such as nushell that does not
+	// forward it. The hint only feeds the log: the reference images printed by
+	// --sixel-check are the real verdict.
+	if sixelEnabled && !env.LikelySupported() {
+		logger.Warn("环境提示未识别到 Sixel 图形终端，仍按显式配置发送 DCS；若无图片先跑 --sixel-check 或改回 text",
+			"term", env.Term, "termProgram", env.TermProgram, "colorterm", env.ColorTerm,
+			"wtSession", env.WTSession, "wtProfileID", env.WTProfileID, "tmux", env.TMUX, "ssh", env.SSH)
+		logger.Warn("排查顺序：`chafa -f sixel <图片>` 自证终端（默认 chafa 用半块字符，不能作为依据），再 `ndtui --sixel-check` 看两张对照图",
+			"cellWidth", cfg.UI.SixelCellWidth, "cellHeight", cfg.UI.SixelCellHeight)
 	}
 
 	// Bracketed paste can leave the input parser waiting for a terminating
@@ -241,6 +255,13 @@ func (a *App) commit(server config.Server, client subsonic.Client) error {
 	a.scrobbler.SetClient(client)
 	a.logger.Info("切换服务器", "name", server.Name, "url", server.URL)
 	return nil
+}
+
+// stdoutIsRegularFile only rejects an obvious file redirection. A terminal PTY,
+// ConPTY handle or pipe is left alone: those can still display Sixel graphics.
+func stdoutIsRegularFile() bool {
+	info, err := os.Stdout.Stat()
+	return err == nil && info.Mode().IsRegular()
 }
 
 func (a *App) save() error { return a.cfg.Save(a.path) }

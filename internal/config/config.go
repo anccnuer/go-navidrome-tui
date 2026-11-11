@@ -77,11 +77,18 @@ type UIConfig struct {
 	CompactWidth int  `toml:"compactWidth" comment:"窄于该列数时收起侧栏"`
 
 	// coverProtocol is opt-in: "text" keeps the portable half-block artwork,
-	// "sixel" sends a DCS image on the side channel (requires a Sixel-capable
-	// terminal such as Windows Terminal >= 1.22).
+	// "sixel" explicitly sends a DCS image on the side channel (requires a
+	// Sixel-capable terminal such as Windows Terminal >= 1.22). Terminal
+	// environment hints are advisory only: nushell and IDE terminals often drop
+	// WT_SESSION. --sixel-check probes DA1/CSI 16 t and prints reference images
+	// that settle the question; SixelCell* should follow the reported cell size.
 	CoverProtocol   string `toml:"coverProtocol" comment:"text（默认）| sixel，Sixel 需终端支持"`
-	SixelCellWidth  int    `toml:"sixelCellWidth" comment:"字符格宽度（像素），用于换算 Sixel 图片尺寸"`
-	SixelCellHeight int    `toml:"sixelCellHeight" comment:"字符格高度（像素）"`
+	SixelCellWidth  int    `toml:"sixelCellWidth" comment:"字符格宽度（像素），--sixel-check 会报告实测值"`
+	SixelCellHeight int    `toml:"sixelCellHeight" comment:"字符格高度（像素），--sixel-check 会报告实测值"`
+	// SixelColors is the palette budget. The palette is built from the artwork
+	// itself (median cut) and dithered, so 256 keeps photos close to the
+	// original; lower values trade fidelity for a smaller payload.
+	SixelColors int `toml:"sixelColors" comment:"Sixel 调色板颜色数（2-256，默认 256）"`
 }
 
 // LastFMConfig enables optional scrobbling to Last.fm.
@@ -132,6 +139,7 @@ func Default() *Config {
 			CoverProtocol:   "text",
 			SixelCellWidth:  8,
 			SixelCellHeight: 16,
+			SixelColors:     256,
 		},
 		LastFM: LastFMConfig{ScrobbleAt: 50},
 		Log:    LogConfig{Level: "warn"},

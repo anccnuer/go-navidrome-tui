@@ -15,15 +15,11 @@ import (
 // View renders one complete frame. No IO or image decoding happens here.
 func (m *Model) View() string {
 	if m.width < 24 || m.height < 8 {
-		if m.sixelLayer != nil {
-			m.sixelLayer.Invalidate()
-		}
+		m.invalidateSixel()
 		return m.styles.Warning.Render("终端窗口太小，请至少调整为 24×8")
 	}
 	if m.view == model.ViewWizard {
-		if m.sixelLayer != nil {
-			m.sixelLayer.Invalidate()
-		}
+		m.invalidateSixel()
 		return m.wizard.render(m.styles, m.width, m.height)
 	}
 
@@ -47,8 +43,9 @@ func (m *Model) View() string {
 		parts = append(parts, toastLine)
 	}
 	parts = append(parts, now)
-	m.syncSixel()
-	return components.FitHeight(strings.Join(parts, "\n"), m.height)
+	frame := components.FitHeight(strings.Join(parts, "\n"), m.height)
+	m.syncSixel(frame)
+	return frame
 }
 
 // statusCenter builds the middle status-bar segment (go-musicfox injects a
@@ -134,6 +131,31 @@ func (m *Model) sixelOrigin() (row, col int) {
 	// status bar (1) + panel top border (1) + panel title row (1) = 3,
 	// then the content block starts on the next row.
 	return top + 4, leftPad + 2
+}
+
+// sixelFrameChanged compares the text rows overlapping the Sixel artwork with
+// the previous frame and stores the new snapshot. One guard row above and
+// below covers terminals that round the pixel height up to a whole cell.
+func (m *Model) sixelFrameChanged(frame string, row, artH int) bool {
+	lines := strings.Split(frame, "\n")
+	start := max(0, row-2)
+	end := min(len(lines), row+artH)
+	if end <= start {
+		m.sixelFrameRows = nil
+		return true
+	}
+	rows := lines[start:end]
+	changed := len(rows) != len(m.sixelFrameRows)
+	if !changed {
+		for i := range rows {
+			if rows[i] != m.sixelFrameRows[i] {
+				changed = true
+				break
+			}
+		}
+	}
+	m.sixelFrameRows = append([]string(nil), rows...)
+	return changed
 }
 
 // renderNowPlaying is the immersive, two-column playback screen (z).

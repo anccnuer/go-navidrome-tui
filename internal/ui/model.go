@@ -70,10 +70,11 @@ type Model struct {
 	coverArt string
 	coverKey string
 	// Sixel artwork is sent outside the text frame; see internal/cover/sixel.
-	sixelLayer *sixel.Layer
-	sixelArt   string
-	sixelKey   string
-	sixelGen   int // bumped by r so a lost graphic can be re-sent
+	sixelLayer     *sixel.Layer
+	sixelArt       string
+	sixelKey       string
+	sixelGen       int      // bumped when the artwork must be re-sent
+	sixelFrameRows []string // last frame's rows overlapping the artwork
 
 	statusWarn bool
 	toasts     []toast
@@ -162,6 +163,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
+		// The renderer repaints every line on a resize, which erases the
+		// graphics layer even when the text rows end up unchanged.
+		m.sixelFrameRows = nil
 		return m, m.refreshCover()
 
 	case tea.KeyMsg:
@@ -386,17 +390,35 @@ func (m *Model) sixelActive() bool {
 		m.view == model.ViewNowPlaying && m.sixelArt != ""
 }
 
+// invalidateSixel removes the side-channel image and forgets the frame
+// snapshot, so re-entering the immersive screen always re-sends the artwork.
+func (m *Model) invalidateSixel() {
+	if m.sixelLayer != nil {
+		m.sixelLayer.Invalidate()
+	}
+	m.sixelFrameRows = nil
+}
+
 // syncSixel schedules (or removes) the side-channel image for this frame.
-func (m *Model) syncSixel() {
+func (m *Model) syncSixel(frame string) {
 	if m.sixelLayer == nil {
 		return
 	}
 	if !m.sixelActive() {
-		m.sixelLayer.Invalidate()
+		m.invalidateSixel()
 		return
 	}
 	row, col := m.sixelOrigin()
-	// Include the origin in the key so a resize always re-sends the image.
+	_, _, _, artH, _ := m.immersiveLayout()
+	// Bubble Tea diffs whole lines: a scrolling lyric on the right also
+	// rewrites the blank artwork cells on the left and wipes the DCS pixels in
+	// those rows (the top line of the image disappears). Re-send the image
+	// whenever any row overlapping the artwork changed.
+	if m.sixelFrameChanged(frame, row, artH) {
+		m.sixelGen++
+	}
+	// Include the origin and generation in the key so a resize or repaint
+	// always re-sends the image.
 	m.sixelLayer.Place(row, col, m.sixelArt,
 		fmt.Sprintf("%s:%d:%d:%d", m.sixelKey, row, col, m.sixelGen))
 }

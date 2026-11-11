@@ -64,12 +64,24 @@ animations = true
 trueColor = true
 coverWidth = 26
 compactWidth = 60
-# 封面渲染：text（默认，半块字符，任何终端都能显示）| sixel（需图形终端）
-# 开启 Sixel 前先在真实终端跑一次 `ndtui --sixel-check` 看测试图是否出现
+# 封面渲染：text（默认，半块字符，任何终端都能显示）| sixel（显式开启，需图形终端）
+# 排查顺序（同一个终端窗口里执行）：
+#   1. `chafa -f sixel <图片>` 能出图 → 终端本身支持 Sixel。注意默认的 `chafa <图片>`
+#      用的是半块字符，看起来有图也不能证明支持 Sixel。
+#   2. `ndtui --sixel-check` → 会向终端查询 DA1（属性 4 = Sixel）与字符格像素尺寸，
+#      再打印两张对照图：手写品红块（公认正确）与程序编码器生成的渐变图。
+#      两张都出＝终端与编码器都正常；只出品红块＝编码器输出被拒（可用
+#      `ndtui --sixel-dump sixel.txt` 导出载荷与 chafa 对比）；两张都不出＝当前窗口不渲染 Sixel。
+#      WT_SESSION / TERM 只作日志参考：nushell、IDE 内置终端常常不转发它们。
+# 设为 sixel 后终端环境变量只写日志提示，不会自动回退（stdout 重定向到文件除外）
 coverProtocol = "text"
-# Sixel 按像素绘制，这两个值用于把字符格换算成像素，按字体大小调整
+# Sixel 按像素绘制，这两个值用于把字符格换算成像素。--sixel-check 会报告终端实测的
+# 字符格像素，按它填最准；不符合时图片会溢出占位区或被裁切。
 sixelCellWidth = 8
 sixelCellHeight = 16
+# Sixel 调色板颜色数（2-256，默认 256）。调色板按封面自身颜色自适应生成，并做
+# Floyd-Steinberg 抖动；调低会牺牲细腻度换取更小的传输量，一般不用改。
+sixelColors = 256
 
 [lastfm]
 enabled = false

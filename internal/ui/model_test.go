@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/anccnuer/go-navidrome-tui/internal/config"
+	"github.com/anccnuer/go-navidrome-tui/internal/cover"
 	"github.com/anccnuer/go-navidrome-tui/internal/cover/sixel"
 	"github.com/anccnuer/go-navidrome-tui/internal/keymap"
 	"github.com/anccnuer/go-navidrome-tui/internal/model"
@@ -477,6 +478,89 @@ func TestSixelReservesBlankArtworkArea(t *testing.T) {
 	_ = m.View()
 	if _, clear, ok := layer.Take(); !ok || !clear {
 		t.Fatal("leaving the immersive screen must clear the Sixel image")
+	}
+}
+
+// Regression: Bubble Tea diffs whole lines, so a scrolling lyric rewrites the
+// blank cells reserved for the Sixel artwork and wipes the DCS pixels in those
+// rows (the image loses its top line). The image must be re-sent for such a
+// frame, but not for unrelated frames like the playback progress tick.
+func TestSixelResendsWhenLyricsScrollOverArtwork(t *testing.T) {
+	m := testModel(t, true)
+	m.view = model.ViewNowPlaying
+	m.cfg.UI.CoverProtocol = "sixel"
+	layer := sixel.NewLayer(true)
+	m.SetSixelLayer(layer)
+	m.sixelArt = "SIXEL-PAYLOAD"
+	m.sixelKey = "song-1"
+	m.playerState.Song = model.Song{ID: "s1", Title: "My Song", Artist: "Someone"}
+	lines := make([]model.LyricsLine, 40)
+	for i := range lines {
+		lines[i] = model.LyricsLine{Text: fmt.Sprintf("lyric-%02d", i)}
+	}
+	m.lyrics = model.Lyrics{Lines: lines, Synced: false}
+	m.lyricsOffset = 12
+
+	_ = m.View()
+	if _, _, ok := layer.Take(); !ok {
+		t.Fatal("initial artwork was not scheduled")
+	}
+	before := m.View()
+	if _, _, ok := layer.Take(); ok {
+		t.Fatal("an unchanged frame re-sent the image")
+	}
+
+	m.lyricsOffset = 30 // scroll the right-hand lyric viewport
+	after := m.View()
+	row, _ := m.sixelOrigin()
+	if strings.Split(before, "\n")[row-1] == strings.Split(after, "\n")[row-1] {
+		t.Fatal("test setup: the top artwork row did not change")
+	}
+	frame, clear, ok := layer.Take()
+	if !ok || clear || !strings.Contains(frame, "SIXEL-PAYLOAD") {
+		t.Fatalf("artwork was not re-sent after a lyric scroll: ok=%v clear=%v frame=%q", ok, clear, frame)
+	}
+
+	// Only the bottom playback bar changes on a progress tick; resending a
+	// full DCS image there would waste bandwidth for no reason.
+	m.playerState.Position++
+	m.spinnerFrame++
+	_ = m.View()
+	if _, _, ok := layer.Take(); ok {
+		t.Fatal("an unrelated frame re-sent the image")
+	}
+
+	// A resize repaints every line even when the text stays the same.
+	m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	_ = m.View()
+	if _, _, ok := layer.Take(); !ok {
+		t.Fatal("a resize did not re-send the image")
+	}
+}
+
+// Regression: a cached half-block rendering without a DCS payload used to
+// return immediately and leave sixelArt empty forever, so the UI never left
+// text mode even after Sixel was enabled.
+func TestCoverCmdReencodesWhenTextCacheMissesSixel(t *testing.T) {
+	m := testModel(t, false)
+	m.view = model.ViewNowPlaying
+	m.cfg.UI.CoverProtocol = "sixel"
+	m.SetSixelLayer(sixel.NewLayer(true))
+	m.playerState.Song = model.Song{ID: "s1"} // empty CoverID uses the gradient placeholder
+	_, artW, _, artH, _ := m.immersiveLayout()
+	key := cover.CacheKey("", artW, artH, m.depth)
+	m.coverCache.Set(key, "TEXT-ART")
+
+	cmd := m.refreshCover()
+	if cmd == nil {
+		t.Fatal("a text-only cache entry must not short-circuit Sixel encoding")
+	}
+	msg, ok := cmd().(coverLoadedMsg)
+	if !ok {
+		t.Fatal("cover command returned the wrong message")
+	}
+	if !strings.HasPrefix(msg.sixel, sixel.DCSStart) {
+		t.Fatalf("Sixel payload was not generated: %q", msg.sixel)
 	}
 }
 

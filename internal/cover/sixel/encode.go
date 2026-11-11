@@ -1,9 +1,9 @@
 // Package sixel encodes images as DEC Sixel graphics (DCS) sequences.
 //
 // A Sixel is a terminal graphics protocol, not text: the payload is a DCS
-// sequence (ESC P q ... ESC \) that the terminal draws outside the character
-// grid. It must therefore be sent on a side channel, never embedded in a
-// Bubble Tea View() string (see internal/app/output.go).
+// sequence (ESC P 0;1;0q ... ESC \) that the terminal draws outside the
+// character grid. It must therefore be sent on a side channel, never embedded
+// in a Bubble Tea View() string (see internal/cover/sixel/layer.go).
 package sixel
 
 import (
@@ -16,122 +16,150 @@ import (
 )
 
 const (
-	// DCSStart / DCSEnd wrap every Sixel image.
-	DCSStart = "\x1bPq"
+	// DCSStart follows the DECSIXEL parameter form used by Chafa/libsixel:
+	//   P1=0  rely on the raster attributes for aspect ratio
+	//   P2=1  keep zero bits transparent (do not repaint the background)
+	//   P3=0  horizontal grid size is ignored by modern terminals
+	// The bare "ESC P q" shorthand defaults P2=0, so each additional colour
+	// pass in a band erases the previous colours with the background colour;
+	// Windows Terminal then shows only blank image rows.
+	DCSStart = "\x1bP0;1;0q"
 	DCSEnd   = "\x1b\\"
 
-	cubeLevels  = 4
-	cubeSize    = cubeLevels * cubeLevels * cubeLevels // 64
-	graySize    = 8
-	paletteSize = cubeSize + graySize
+	// runThreshold is the shortest identical run worth spending "!n" on.
+	runThreshold = 4
 )
 
-var cubeRGB = [cubeLevels]int{0, 85, 170, 255}
-var grayRGB = [graySize]int{16, 50, 84, 118, 152, 186, 220, 255}
-
-// paletteColor returns the 0..255 RGB triplet of a palette entry.
-func paletteColor(i int) (int, int, int) {
-	if i < cubeSize {
-		return cubeRGB[i/(cubeLevels*cubeLevels)],
-			cubeRGB[(i/cubeLevels)%cubeLevels],
-			cubeRGB[i%cubeLevels]
-	}
-	v := grayRGB[(i-cubeSize)%graySize]
-	return v, v, v
+// EncodeOptions tunes the trade-off between fidelity and payload size.
+type EncodeOptions struct {
+	// Colors is the palette budget (2..256). 0 means DefaultColors.
+	Colors int
+	// Dither applies Floyd-Steinberg error diffusion. Without it, smooth
+	// gradients band even at 256 colours; with it the same budget looks much
+	// closer to the original artwork.
+	Dither bool
 }
 
-// colorIndex maps an RGB pixel to the small fixed palette with a cheap O(1)
-// quantisation. Encoding runs in a background tea.Cmd, but artwork can be
-// several hundred thousand pixels, so a nearest-colour search is too costly.
-func colorIndex(r, g, b int) int {
-	max, min := r, r
-	if g > max {
-		max = g
+// DefaultOptions is the fidelity-first configuration used by the UI.
+func DefaultOptions() EncodeOptions {
+	return EncodeOptions{Colors: DefaultColors, Dither: true}
+}
+
+func (o EncodeOptions) normalized() EncodeOptions {
+	switch {
+	case o.Colors <= 0:
+		o.Colors = DefaultColors
+	case o.Colors < MinColors:
+		o.Colors = MinColors
+	case o.Colors > MaxColors:
+		o.Colors = MaxColors
 	}
-	if b > max {
-		max = b
-	}
-	if g < min {
-		min = g
-	}
-	if b < min {
-		min = b
-	}
-	if max-min < 12 {
-		return cubeSize + (r+g+b)/3*(graySize-1)/255
-	}
-	ri := r * (cubeLevels - 1) / 255
-	gi := g * (cubeLevels - 1) / 255
-	bi := b * (cubeLevels - 1) / 255
-	return ri*cubeLevels*cubeLevels + gi*cubeLevels + bi
+	return o
 }
 
 // Encode downscales img to widthPx x heightPx pixels and returns a complete
-// Sixel DCS sequence. Each six-pixel band emits one pass per colour actually
-// present in that band, which keeps the payload far smaller than a full
-// palette sweep. The result is deterministic and safe to cache.
+// Sixel DCS sequence with default options.
 func Encode(img image.Image, widthPx, heightPx int) (string, error) {
+	return EncodeWith(img, widthPx, heightPx, DefaultOptions())
+}
+
+// EncodeWith is Encode with an explicit palette budget and dithering choice.
+//
+// The palette is built from the image itself (median cut) instead of a fixed
+// 4x4x4 colour cube: a cube clips mid-tones, which is why skin came out green
+// and flat areas banded. Each six-pixel band then emits one pass per colour
+// actually present in that band, run-length encoded, with trailing transparent
+// cells dropped. The result is deterministic and safe to cache.
+func EncodeWith(img image.Image, widthPx, heightPx int, opts EncodeOptions) (string, error) {
 	if img == nil {
 		return "", fmt.Errorf("sixel: 图片为空")
 	}
 	if widthPx < 1 || heightPx < 1 {
 		return "", fmt.Errorf("sixel: 像素尺寸非法 %dx%d", widthPx, heightPx)
 	}
+	opts = opts.normalized()
 	px := cover.Resize(img, widthPx, heightPx)
-	idx := make([]uint8, widthPx*heightPx)
-	for y := 0; y < heightPx; y++ {
-		for x := 0; x < widthPx; x++ {
-			c := px.RGBAAt(x, y)
-			idx[y*widthPx+x] = uint8(colorIndex(int(c.R), int(c.G), int(c.B)))
-		}
-	}
+	palette := buildPalette(px, opts.Colors)
+	indices := quantize(px, newQuantizer(palette), opts.Dither)
 
 	var b strings.Builder
+	// Per pixel a colour pass emits at most one byte plus RLE, so a generous
+	// preallocation avoids repeated growth for the common 200x200 cover.
+	b.Grow(widthPx*heightPx/3 + len(palette)*16 + 64)
 	// DCS introducer + DECGRA raster attributes (aspect 1:1, pixel W/H).
 	b.WriteString(DCSStart)
 	fmt.Fprintf(&b, "\"1;1;%d;%d", widthPx, heightPx)
-	for i := 0; i < paletteSize; i++ {
-		r, g, bl := paletteColor(i)
+	for i, c := range palette {
 		// Sixel colour components are percentages (0..100), not 0..255.
-		fmt.Fprintf(&b, "#%d;2;%d;%d;%d", i, r*100/255, g*100/255, bl*100/255)
+		// Windows Terminal silently renders out-of-range values as black.
+		fmt.Fprintf(&b, "#%d;2;%d;%d;%d", i,
+			int(c.r)*100/255, int(c.g)*100/255, int(c.b)*100/255)
 	}
 
-	seen := make([]bool, paletteSize)
+	present := make([]bool, len(palette))
+	pass := make([]byte, widthPx)
 	for band := 0; band < heightPx; band += 6 {
-		for i := range seen {
-			seen[i] = false
+		for i := range present {
+			present[i] = false
 		}
-		bandEnd := band + 6
-		if bandEnd > heightPx {
-			bandEnd = heightPx
-		}
+		bandEnd := min(band+6, heightPx)
 		for y := band; y < bandEnd; y++ {
-			row := idx[y*widthPx : (y+1)*widthPx]
-			for _, c := range row {
-				seen[c] = true
+			row := indices[y*widthPx : (y+1)*widthPx]
+			for _, index := range row {
+				present[index] = true
 			}
 		}
-		for colour, present := range seen {
-			if !present {
+		for colour, used := range present {
+			if !used {
 				continue
 			}
-			fmt.Fprintf(&b, "#%d", colour)
+			last := -1
 			for x := 0; x < widthPx; x++ {
 				var bits byte
-				for dy := 0; dy < 6 && band+dy < heightPx; dy++ {
-					if int(idx[(band+dy)*widthPx+x]) == colour {
+				for dy := 0; dy < 6 && band+dy < bandEnd; dy++ {
+					if int(indices[(band+dy)*widthPx+x]) == colour {
 						bits |= 1 << dy
 					}
 				}
-				// Sixel data is '?' (0x3f) plus the six vertical pixel bits.
-				b.WriteByte(0x3f + bits)
+				pass[x] = bits
+				if bits != 0 {
+					last = x
+				}
 			}
+			if last < 0 {
+				continue
+			}
+			fmt.Fprintf(&b, "#%d", colour)
+			writeRuns(&b, pass[:last+1])
 			b.WriteByte('$') // carriage return: overlay the next colour
 		}
 		b.WriteByte('-') // next six-pixel band
 	}
 	b.WriteString(DCSEnd)
 	return b.String(), nil
+}
+
+// writeRuns emits one colour pass as sixel data, collapsing repeated bytes into
+// "!count<byte>" RLE. Most of a band is either a long transparent gap or a flat
+// colour area, so this is what keeps a 256-colour payload affordable.
+func writeRuns(b *strings.Builder, cells []byte) {
+	for i := 0; i < len(cells); {
+		j := i + 1
+		for j < len(cells) && cells[j] == cells[i] {
+			j++
+		}
+		// Sixel data is '?' (0x3f) plus the six vertical pixel bits.
+		value := 0x3f + cells[i]
+		if run := j - i; run >= runThreshold {
+			fmt.Fprintf(b, "!%d", run)
+			b.WriteByte(value)
+		} else {
+			for k := 0; k < run; k++ {
+				b.WriteByte(value)
+			}
+		}
+		i = j
+	}
 }
 
 // GradientImage builds a deterministic test image for --sixel-check, so the

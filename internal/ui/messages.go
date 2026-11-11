@@ -148,8 +148,15 @@ func (m *Model) coverCmd(song model.Song, width, height int) tea.Cmd {
 	}
 	sixelKey := fmt.Sprintf("%s:sixel:%dx%d", key, pxW, pxH)
 	if art, ok := m.coverCache.Get(key); ok {
-		cached, _ := m.coverCache.Get(sixelKey)
-		return func() tea.Msg { return coverLoadedMsg{key: key, art: art, sixel: cached} }
+		cachedSixel, hasSixel := m.coverCache.Get(sixelKey)
+		// A cached text rendering without a DCS payload must not short-circuit
+		// the Sixel path: re-fetch and encode the image so the next refresh can
+		// actually switch from half-block artwork to the real picture.
+		if pxW < 1 || hasSixel {
+			return func() tea.Msg {
+				return coverLoadedMsg{key: key, art: art, sixel: cachedSixel}
+			}
+		}
 	}
 	client := m.deps.API()
 	colors := append([]string(nil), m.styles.T.Gradient...)
@@ -163,11 +170,12 @@ func (m *Model) coverCmd(song model.Song, width, height int) tea.Cmd {
 		placeholder := cover.RenderPlaceholder(seed, width, height, depth, colors)
 		// A Sixel placeholder keeps the artwork area visually stable while the
 		// real cover is loading; an encode failure simply falls back to text.
+		encodeOpts := sixel.EncodeOptions{Colors: m.cfg.UI.SixelColors, Dither: true}
 		encode := func(img image.Image) string {
 			if pxW < 1 {
 				return ""
 			}
-			out, err := sixel.Encode(img, pxW, pxH)
+			out, err := sixel.EncodeWith(img, pxW, pxH, encodeOpts)
 			if err != nil {
 				return ""
 			}

@@ -1,9 +1,21 @@
 package sixel
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"sync"
+)
+
+const (
+	// DECSET 2026 = synchronized output. Everything between the begin and end
+	// sequences is drawn as one frame, so the terminal never shows the state
+	// where the text rewrite has erased the artwork cells but the new DCS
+	// payload has not been painted yet (that intermediate frame is the flicker
+	// seen when lyrics scroll). Windows Terminal 1.24 implements it; terminals
+	// that do not simply ignore the unknown private mode.
+	syncBegin = "\x1b[?2026h"
+	syncEnd   = "\x1b[?2026l"
 )
 
 // Layer is the shared state between the TUI model (which knows where the cover
@@ -80,7 +92,12 @@ func (l *Layer) Take() (frame string, clear, ok bool) {
 	}
 	// CUP positions the cursor at the artwork's top-left cell; Sixel then
 	// paints into that area without becoming part of the character grid.
-	return fmt.Sprintf("\x1b[%d;%dH%s", l.row, l.col, l.payload), false, true
+	// DECSC/DECRC (ESC 7 / ESC 8) bracket the image because Windows Terminal
+	// 1.22+ moves the cursor to the line below a finished Sixel image, while
+	// xterm/foot/WezTerm leave it on the first image row. Without restoring
+	// it, Bubble Tea's relative cursor moves desync and the next text frame
+	// overwrites the artwork.
+	return fmt.Sprintf("\x1b7\x1b[%d;%dH%s\x1b8", l.row, l.col, l.payload), false, true
 }
 
 // Writer wraps Bubble Tea's output. The standard renderer calls Write once per
@@ -105,26 +122,53 @@ func (w *Writer) Fd() uintptr {
 }
 
 // Write forwards the text frame first, then appends the pending Sixel action.
+// Bubble Tea also sends short control sequences (alt-screen switches, cursor
+// visibility, clear-screen) through this same writer. Those must not consume a
+// pending image before the real text frame reaches the terminal.
 // It returns the number of bytes consumed from p, as io.Writer requires.
+//
+// When a graphics action is pending, the text frame and the DCS payload leave
+// in a single write wrapped in DECSET 2026 (synchronized output). Bubble Tea
+// repaints a whole line whenever any cell changes, so a scrolling lyric wipes
+// the cells the artwork covers and the image has to be re-sent; without
+// synchronized output the terminal shows that intermediate blank state as a
+// flicker on every scroll. Windows Terminal 1.24 honours 2026 and renders the
+// pair atomically; terminals that do not know the mode ignore it.
 func (w *Writer) Write(p []byte) (int, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	n, err := w.Out.Write(p)
-	if err != nil {
-		return n, err
+	if w.Layer == nil || !isTextFrame(p) {
+		return w.Out.Write(p)
 	}
-	w.lastFrame = append(w.lastFrame[:0], p[:n]...)
+	// Remember the frame even when no image is pending: the clear path needs
+	// something to replay.
+	w.lastFrame = append(w.lastFrame[:0], p...)
 	frame, clear, ok := w.Layer.Take()
 	if !ok {
-		return n, nil
+		return w.Out.Write(p)
 	}
+
+	var buf bytes.Buffer
+	buf.Grow(len(p) + len(frame) + len(w.lastFrame) + len(syncBegin) + len(syncEnd))
+	buf.WriteString(syncBegin)
 	if clear {
 		// Erase the graphics layer and immediately replay the text frame so
 		// the user does not see a blank screen until the next tick.
-		_, _ = io.WriteString(w.Out, "\x1b[2J\x1b[H")
-		_, _ = w.Out.Write(w.lastFrame)
-		return n, nil
+		buf.WriteString("\x1b[2J\x1b[H")
+		buf.Write(w.lastFrame)
+	} else {
+		buf.Write(p)
+		buf.WriteString(frame)
 	}
-	_, _ = io.WriteString(w.Out, frame)
-	return n, nil
+	buf.WriteString(syncEnd)
+	if _, err := w.Out.Write(buf.Bytes()); err != nil {
+		return 0, err
+	}
+	return len(p), nil
+}
+
+// isTextFrame identifies the standard renderer's one-write-per-flush frame.
+// It separates rows with CRLF; control sequences are separate short writes.
+func isTextFrame(p []byte) bool {
+	return bytes.Contains(p, []byte("\r\n"))
 }
