@@ -1,5 +1,7 @@
 # go-navidrome-tui
 
+**简体中文** | [English](./README.en.md)
+
 [![Go](https://img.shields.io/github/go-mod/go-version/anccnuer/go-navidrome-tui?logo=go)](go.mod)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-4c566a)](#安装与运行)
 [![mpv](https://img.shields.io/badge/audio-mpv-orange)](https://mpv.io/)
